@@ -1,16 +1,17 @@
 import sqlite3
 from pathlib import Path
 
-DATABASE_PATH = Path("coffee_log_web.db")
+DB_NAME = Path("coffee_log_web.db").resolve().parent
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(DATABASE_PATH)
+    conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def init_db() -> None:
-    # Tables will be added as each MVP model is implemented.
     with get_connection() as conn:
         conn.execute("PRAGMA foreign_keys = ON")
+
+    conn.close()
