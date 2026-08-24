@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 from typing import Literal
 from datetime import datetime, date
 
@@ -23,6 +23,19 @@ class EquipmentSetUpdate(BaseModel):
     grinder_label: str | None = Field(default=None, min_length=1, max_length=100, description="Label for the grinder")
     grind_setting_unit: Literal["click", "step", "number", "other"] | None = Field(default=None, description="Unit for the grind setting")
     note: str | None = Field(default=None, description="Optional note about the equipment")
+
+    @field_validator(
+        "name",
+        "filter_label",
+        "brewer_label",
+        "grinder_label",
+        "grind_setting_unit",
+    )
+    @classmethod
+    def reject_null(cls, value):
+        if value is None:
+            raise ValueError("field cannot be null")
+        return value
 
 class Pour(BaseModel):
     grams: float = Field(gt=0, description="Amount of water poured in grams")
