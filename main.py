@@ -3,10 +3,15 @@ import json
 from contextlib import closing
 from fastapi import FastAPI, HTTPException
 from database import get_connection
-from models import BrewLogCreate, BrewLogCreateRequest, BrewLogRead, EquipmentSetCreate, EquipmentSetRead, EquipmentSetUpdate
+from models import BrewLogCreateRequest, BrewLogRead, EquipmentSetCreate, EquipmentSetRead, EquipmentSetUpdate
 
 
 app = FastAPI(title="Coffee Log Web")
+
+def row_to_brew_log_read(row) -> BrewLogRead:
+    brew_log_data = dict(row)
+    brew_log_data["pours"] = json.loads(brew_log_data["pours"])
+    return BrewLogRead(**brew_log_data)
 
 @app.post("/equipment-sets")
 def create_equipment_set(equipment_set: EquipmentSetCreate) -> EquipmentSetRead:
@@ -229,8 +234,19 @@ def create_brew_log(request: BrewLogCreateRequest) -> BrewLogRead:
                 "SELECT * FROM brew_logs WHERE id = ?",
                 (brew_log_id,)
             ).fetchone()
-            brew_log_data = dict(brew_log_row)
-            brew_log_data["pours"] = json.loads(brew_log_data["pours"])
-            return BrewLogRead(**brew_log_data)
+            return row_to_brew_log_read(brew_log_row)
 
+@app.get("/logs")
+def read_brew_logs() -> list[BrewLogRead]:
+    with closing(get_connection()) as conn:
+        brew_log_rows = conn.execute("SELECT * FROM brew_logs").fetchall()
+        return [row_to_brew_log_read(row) for row in brew_log_rows]
 
+@app.get("/logs/{brew_log_id}")
+def read_brew_log(brew_log_id: int) -> BrewLogRead:
+    with closing(get_connection()) as conn:
+        brew_log_row = conn.execute("SELECT * FROM brew_logs WHERE id = ?", (brew_log_id,)).fetchone()
+        if brew_log_row is None:
+            raise HTTPException(status_code=404, detail="Brew log not found")
+
+        return row_to_brew_log_read(brew_log_row)
