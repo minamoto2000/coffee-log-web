@@ -1,7 +1,9 @@
+import json
+
 from contextlib import closing
 from fastapi import FastAPI, HTTPException
 from database import get_connection
-from models import EquipmentSetCreate, EquipmentSetRead, EquipmentSetUpdate
+from models import BrewLogCreate, BrewLogCreateRequest, BrewLogRead, EquipmentSetCreate, EquipmentSetRead, EquipmentSetUpdate
 
 
 app = FastAPI(title="Coffee Log Web")
@@ -127,3 +129,108 @@ def delete_equipment_set(equipment_set_id: int) -> EquipmentSetRead:
         ).fetchone()
 
         return EquipmentSetRead(**dict(row))
+
+@app.post("/logs")
+def create_brew_log(request: BrewLogCreateRequest) -> BrewLogRead:
+    brew_log = request.brew_log
+    evaluation = request.evaluation
+
+    with closing(get_connection()) as conn:
+        equipment_set_row = conn.execute(
+            "SELECT * FROM equipment_sets WHERE id = ? AND is_active = 1",
+            (brew_log.equipment_set_id,)
+        ).fetchone()
+
+        if equipment_set_row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Equipment set not found"
+            )
+
+        pours_json = json.dumps([pour.model_dump() for pour in brew_log.pours])
+
+        with conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO brew_logs (
+                    brewed_at,
+                    equipment_set_id,
+                    bean_label,
+                    dose_g,
+                    water_g,
+                    water_temp_c,
+                    grind_setting_value,
+                    bloom_time_s,
+                    agitation_level,
+                    pours,
+                    finish_pouring_s,
+                    brew_end_s,
+                    equipment_set_name_snapshot,
+                    brewer_label_snapshot,
+                    filter_label_snapshot,
+                    grinder_label_snapshot,
+                    grind_setting_unit_snapshot,
+                    note
+                )
+                VALUES (
+                    COALESCE(?, CURRENT_TIMESTAMP),
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    )
+                """,
+                (
+                    brew_log.brewed_at,
+                    brew_log.equipment_set_id,
+                    brew_log.bean_label,
+                    brew_log.dose_g,
+                    brew_log.water_g,
+                    brew_log.water_temp_c,
+                    brew_log.grind_setting_value,
+                    brew_log.bloom_time_s,
+                    brew_log.agitation_level,
+                    pours_json,
+                    brew_log.finish_pouring_s,
+                    brew_log.brew_end_s,
+                    equipment_set_row["name"],
+                    equipment_set_row["brewer_label"],
+                    equipment_set_row["filter_label"],
+                    equipment_set_row["grinder_label"],
+                    equipment_set_row["grind_setting_unit"],
+                    brew_log.note
+                )
+            )
+            brew_log_id = cursor.lastrowid
+            conn.execute(
+                """
+                INSERT INTO evaluations (
+                    brew_log_id,
+                    confidence,
+                    overall_score,
+                    taste_defect,
+                    aroma_defect,
+                    aftertaste_defect,
+                    texture_defect,
+                    memo
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    brew_log_id,
+                    evaluation.confidence,
+                    evaluation.overall_score,
+                    evaluation.taste_defect,
+                    evaluation.aroma_defect,
+                    evaluation.aftertaste_defect,
+                    evaluation.texture_defect,
+                    evaluation.memo
+                )
+            )
+
+            brew_log_row = conn.execute(
+                "SELECT * FROM brew_logs WHERE id = ?",
+                (brew_log_id,)
+            ).fetchone()
+            brew_log_data = dict(brew_log_row)
+            brew_log_data["pours"] = json.loads(brew_log_data["pours"])
+            return BrewLogRead(**brew_log_data)
+
+

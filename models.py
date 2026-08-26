@@ -68,7 +68,6 @@ class BrewLogRead(BrewLogCreate):
     updated_at: datetime = Field(description="Timestamp when the brew log was last updated")
 
 class EvaluationCreate(BaseModel):
-    brew_log_id: int = Field(ge=1, description="Reference to brew_logs.id")
     confidence: int = Field(ge=1, le=3, description="Confidence level from 1 to 3")
     overall_score: int | None = Field(default=None, ge=1, le=10, description="Overall score from 1 to 10")
     taste_defect: Literal["none", "thin", "sour", "bitter", "not_sweet"] = Field(description="Type of taste defect")
@@ -84,9 +83,13 @@ class EvaluationCreate(BaseModel):
         return self
 
 class EvaluationRead(EvaluationCreate):
-    id: int = Field(description="Primary key")
+    brew_log_id: int = Field(description="Primary key")
     created_at: datetime = Field(description="Timestamp when the evaluation was created")
     updated_at: datetime = Field(description="Timestamp when the evaluation was last updated")
+
+class BrewLogCreateRequest(BaseModel):
+    brew_log: BrewLogCreate = Field(description="Brew log data")
+    evaluation: EvaluationCreate = Field(description="Evaluation data")
 
 class ExternalBenchmarkCreate(BaseModel):
     consumed_at: date = Field(description="Date when the benchmark was consumed")
