@@ -3,3 +3,4 @@ scratch/
 __pycache__/
 *.pyc
 coffee_log_web.db
+test.py

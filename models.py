@@ -83,7 +83,8 @@ class EvaluationCreate(BaseModel):
         return self
 
 class EvaluationRead(EvaluationCreate):
-    brew_log_id: int = Field(description="Primary key")
+    id: int = Field(description="Primary key")
+    brew_log_id: int = Field(description="Reference to brew_logs.id")
     created_at: datetime = Field(description="Timestamp when the evaluation was created")
     updated_at: datetime = Field(description="Timestamp when the evaluation was last updated")
 
@@ -102,3 +103,41 @@ class ExternalBenchmarkRead(ExternalBenchmarkCreate):
     id: int = Field(description="Primary key")
     created_at: datetime = Field(description="Timestamp when the benchmark was created")
     updated_at: datetime = Field(description="Timestamp when the benchmark was last updated")
+
+class RecommendationRead(BaseModel):
+    target_log_id: int = Field(ge=1, description="ID of the target brew log")
+    recommendation_mode: Literal[
+        "experiment",
+        "normal",
+        "strong"
+        ] = Field(description="Mode of the recommendation")
+    
+    action_type: Literal[
+        "keep_same",
+        "adjust_grind",
+        "adjust_water_temp",
+        "adjust_bloom_time",
+        "adjust_agitation"
+        ] = Field(description="Type of action recommended")
+
+    direction: Literal[
+        "none",
+        "increase",
+        "decrease",
+        "finer",
+        "coarser"
+        ] = Field(description="Direction of the recommended action")
+
+    amount: int = Field(ge=0, description="Amount of the recommended action")
+
+    unit: Literal[
+        "click",
+        "step",
+        "number",
+        "other",
+        "celsius",
+        "level",
+        "none"
+    ]
+    message: str = Field(description="Message explaining the recommendation")
+    reason: str = Field(description="Reason for the recommendation")

@@ -3,7 +3,17 @@ import json
 from contextlib import closing
 from fastapi import FastAPI, HTTPException
 from database import get_connection
-from models import BrewLogCreateRequest, BrewLogRead, EquipmentSetCreate, EquipmentSetRead, EquipmentSetUpdate
+from models import (
+    BrewLogCreateRequest,
+    BrewLogRead,
+    EquipmentSetCreate,
+    EquipmentSetRead,
+    EquipmentSetUpdate,
+    EvaluationRead,
+    RecommendationRead,
+)
+
+from recommendation import build_recommendation
 
 
 app = FastAPI(title="Coffee Log Web")
@@ -250,3 +260,20 @@ def read_brew_log(brew_log_id: int) -> BrewLogRead:
             raise HTTPException(status_code=404, detail="Brew log not found")
 
         return row_to_brew_log_read(brew_log_row)
+
+@app.get("/logs/{brew_log_id}/recommendation")
+def read_recommendation(brew_log_id: int) -> RecommendationRead:
+    with closing(get_connection()) as conn:
+        brew_log_row = conn.execute("SELECT * FROM brew_logs WHERE id = ?", (brew_log_id,)).fetchone()
+        if brew_log_row is None:
+            raise HTTPException(status_code=404, detail="Brew log not found")
+
+        evaluation_row = conn.execute("SELECT * FROM evaluations WHERE brew_log_id = ?", (brew_log_id,)).fetchone()
+        if evaluation_row is None:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
+
+        brew_log = row_to_brew_log_read(brew_log_row)
+        evaluation = EvaluationRead(**dict(evaluation_row))
+
+        recommendation = build_recommendation(brew_log, evaluation)
+        return recommendation
