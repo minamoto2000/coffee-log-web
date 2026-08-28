@@ -10,6 +10,8 @@ from models import (
     EquipmentSetRead,
     EquipmentSetUpdate,
     EvaluationRead,
+    ExternalBenchmarkCreate,
+    ExternalBenchmarkRead,
     RecommendationRead,
 )
 
@@ -293,4 +295,50 @@ def read_recommendation(brew_log_id: int) -> RecommendationRead:
 
         recommendation = build_recommendation(brew_log, evaluation)
         return recommendation
+
+@app.post("/benchmarks")
+def create_external_benchmark(benchmark: ExternalBenchmarkCreate) -> ExternalBenchmarkRead:
+
+    with closing(get_connection()) as conn:
+        with conn:
+            cursor = conn.execute(
+                "INSERT INTO external_benchmarks (consumed_at, source_type, product_name, overall_score, note) VALUES (?, ?, ?, ?, ?)",
+                (benchmark.consumed_at, benchmark.source_type, benchmark.product_name, benchmark.overall_score, benchmark.note)
+            )
+
+            benchmark_id = cursor.lastrowid
+
+        benchmark_row = conn.execute("SELECT * FROM external_benchmarks WHERE id = ?", (benchmark_id,)).fetchone()
+
+        return ExternalBenchmarkRead(**dict(benchmark_row))
+
+@app.get("/benchmarks")
+def read_external_benchmarks() -> list[ExternalBenchmarkRead]:
+    with closing(get_connection()) as conn:
+        benchmark_rows = conn.execute("SELECT * FROM external_benchmarks").fetchall()
+        return [ExternalBenchmarkRead(**dict(row)) for row in benchmark_rows]
+
+@app.get("/benchmarks/{benchmark_id}")
+def read_external_benchmark(benchmark_id: int) -> ExternalBenchmarkRead:
+    with closing(get_connection()) as conn:
+        benchmark_row = conn.execute("SELECT * FROM external_benchmarks WHERE id = ?", (benchmark_id,)).fetchone()
+        if benchmark_row is None:
+            raise HTTPException(status_code=404, detail="External benchmark not found")
+
+        return ExternalBenchmarkRead(**dict(benchmark_row))
+
+@app.delete("/benchmarks/{benchmark_id}")
+def delete_external_benchmark(
+    benchmark_id: int
+) -> ExternalBenchmarkRead:
+
+    with closing(get_connection()) as conn:
+        benchmark_row = conn.execute("SELECT * FROM external_benchmarks WHERE id = ?", (benchmark_id,)).fetchone()
+        if benchmark_row is None:
+            raise HTTPException(status_code=404, detail="External benchmark not found")
+
+        with conn:
+            conn.execute("DELETE FROM external_benchmarks WHERE id = ?", (benchmark_id,))
+
+    return ExternalBenchmarkRead(**dict(benchmark_row))
 
