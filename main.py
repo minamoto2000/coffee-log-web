@@ -261,6 +261,22 @@ def read_brew_log(brew_log_id: int) -> BrewLogRead:
 
         return row_to_brew_log_read(brew_log_row)
 
+@app.get("/logs/latest/recommendation")
+def read_latest_recommendation() -> RecommendationRead:
+    with closing(get_connection()) as conn:
+        latest_brew_log_row = conn.execute("SELECT * FROM brew_logs ORDER BY brewed_at DESC, id DESC LIMIT 1").fetchone()
+        if latest_brew_log_row is None:
+            raise HTTPException(status_code=404, detail="No brew logs found")
+
+        latest_brew_log = row_to_brew_log_read(latest_brew_log_row)
+        evaluation_row = conn.execute("SELECT * FROM evaluations WHERE brew_log_id = ?", (latest_brew_log.id,)).fetchone()
+        if evaluation_row is None:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
+
+        evaluation = EvaluationRead(**dict(evaluation_row))
+        recommendation = build_recommendation(latest_brew_log, evaluation)
+        return recommendation
+
 @app.get("/logs/{brew_log_id}/recommendation")
 def read_recommendation(brew_log_id: int) -> RecommendationRead:
     with closing(get_connection()) as conn:
@@ -277,3 +293,4 @@ def read_recommendation(brew_log_id: int) -> RecommendationRead:
 
         recommendation = build_recommendation(brew_log, evaluation)
         return recommendation
+
