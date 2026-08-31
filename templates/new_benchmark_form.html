@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Add Benchmark</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+</head>
+
+<body>
+    <h1>Add Benchmark</h1>
+
+    <form id="benchmark-form">
+        <label>Date</label>
+        <input type="date" name="consumed_at">
+
+        <label>Source</label>
+            <select name="source_type">
+                <option value="cafe">Cafe</option>
+                <option value="convenience_store">Convenience Store</option>
+                <option value="other">Other</option>
+            </select>
+
+        <label>Product</label>
+        <input type="text" name="product_name">
+
+        <label>Score</label>
+        <input type="number" min="1" max="10" name="overall_score">
+
+        <label>Note</label>
+        <textarea name="note"></textarea>
+
+        <button type="submit">Save</button>
+    </form>
+
+    <script>
+        const form = document.getElementById("benchmark-form");
+
+        form.addEventListener("submit", async function(event) {
+            event.preventDefault();
+
+            // ここにJavaScriptを書く
+            const benchmark = {
+                consumed_at: form.consumed_at.value,
+                source_type: form.source_type.value,
+                product_name: form.product_name.value,
+                overall_score: Number(form.overall_score.value),
+                note: form.note.value
+            };
+            const response = await fetch("/benchmarks", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(benchmark)
+            });
+        });
+    </script>
+</body>
+
+</html>

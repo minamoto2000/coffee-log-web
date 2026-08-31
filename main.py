@@ -1,7 +1,8 @@
 import json
 
 from contextlib import closing
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.templating import Jinja2Templates
 from database import get_connection
 from models import (
     BrewLogCreateRequest,
@@ -16,9 +17,14 @@ from models import (
 )
 
 from recommendation import build_recommendation
+from fastapi.staticfiles import StaticFiles
 
 
 app = FastAPI(title="Coffee Log Web")
+
+templates = Jinja2Templates(directory="templates")
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 def row_to_brew_log_read(row) -> BrewLogRead:
     brew_log_data = dict(row)
@@ -342,3 +348,22 @@ def delete_external_benchmark(
 
     return ExternalBenchmarkRead(**dict(benchmark_row))
 
+@app.get("/pages/benchmarks")
+def read_benchmarks(request: Request):
+    with closing(get_connection()) as conn:
+        benchmark_rows = conn.execute("SELECT * FROM external_benchmarks").fetchall()
+        benchmarks = [ExternalBenchmarkRead(**dict(row)) for row in benchmark_rows]
+    
+    return templates.TemplateResponse(
+        request=request,
+        name="benchmarks.html",
+        context={"benchmarks": benchmarks}
+    )
+
+@app.get("/pages/benchmarks/new")
+def new_benchmark_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="new_benchmark_form.html",
+        context={}
+    )

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Benchmark Page Test</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+</head>
+
+<body>
+    <h1>Benchmark List</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Date</th>
+                <th>Source</th>
+                <th>Product</th>
+                <th>Score</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if benchmarks %}
+                {% for benchmark in benchmarks %}
+                    <tr>
+                        <td>{{ benchmark.id }}</td>
+                        <td>{{ benchmark.consumed_at }}</td>
+                        <td>{{ benchmark.source_type }}</td>
+                        <td>{{ benchmark.product_name }}</td>
+                        <td>{{ benchmark.overall_score }}</td>
+                        <td>{{ benchmark.note }}</td>
+                    </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6">No benchmarks found.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</body>
+
+</html>
