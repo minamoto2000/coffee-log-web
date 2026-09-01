@@ -2,6 +2,19 @@
 
 ハンドドリップ最適化アプリのWeb版MVPです。
 
+## READMEの読み方
+
+このREADMEでは、現在のMVPとMVP後のプロダクト構想を明確に分けて扱います。
+
+- `Current MVP`：現在完成させる対象です。MVPの設計・API・データモデルを記載します。
+- `Post-MVP Product Direction`：MVP完成後の未実装構想です。現在のMVP完成条件には含めません。
+
+重要：READMEに記載されている設計案を、そのまま実装済みとは扱いません。実装済み判定は、このリポジトリの実コード、テスト、テンプレート、ディレクトリ構成を正本とします。
+
+---
+
+# Current MVP
+
 ## MVP設計メモ
 
 この節は、現行の `logs` CRUD を前提に、Web版MVPで `equipment_sets` / `brew_logs` / `evaluations` / `recommendation` へ設計を分けるための下書きです。
@@ -283,7 +296,12 @@ recommendationは保存用モデルではなく、レスポンス用モデルと
 
 ---
 
-## Product direction after MVP
+# Post-MVP Product Direction — Not Implemented
+
+> [!IMPORTANT]
+> このセクションはMVP完成後のプロダクト構想です。以下の `Experiment`、Brew Mode、Automatic diff、Experiment chain、複数ログ分析、AI補助などは、現時点のMVP完成条件にも実装済み機能にも含めません。
+>
+> このセクションの存在を理由に、Current MVPのDB・API・画面へ将来機能を先行実装しません。
 
 MVP完成後は、単なる「コーヒー記録アプリ」ではなく、以下を中心とする反復実験支援アプリへ発展させます。
 
