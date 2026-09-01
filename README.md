@@ -885,7 +885,21 @@ uvicorn main:app --reload
 > このセクションはMVP完成後の未実装構想です。
 > `Experiment`、Automatic diff、Experiment chain、Brew Mode、複数ログ分析、AI補助などはCurrent MVPの完成条件に含めません。
 
-## 最優先Product Slice
+## 1. プロダクトの中心価値
+
+MVP完成後は、単なるコーヒー記録アプリではなく、反復実験を支援するアプリへ発展させます。
+
+> 前回のハンドドリップを基準に1条件だけ変えて抽出し、その変更と味の変化を自動で比較・蓄積することで、自分の好みに合った再現可能な抽出条件を見つける。
+
+専用アプリの価値は次の3点に置きます。
+
+1. 入力摩擦を減らす
+2. 抽出条件と評価を一貫した構造で保存する
+3. 反復実験の差分と結果を自動比較する
+
+## 2. MVP後の最優先プロダクト検証
+
+Current MVP完成後、最初に検証するVertical Sliceはこれです。
 
 ```text
 前回のBrewLogを複製
@@ -895,6 +909,116 @@ uvicorn main:app --reload
 → Evaluation結果を比較
 ```
 
-目的は、記録そのものではなく「入力摩擦の削減・構造化・反復実験の自動比較」に専用アプリの価値を置けるか検証することです。
+この段階ではExperimentテーブル、AI、Brew Mode、高度分析は必須にしません。
 
-Current MVP完成前にこの方向の機能を先行実装しません。
+目的は「1変数ずつ変更する実験体験に価値があるか」を最小追加で検証することです。
+
+## 3. Experiment
+
+将来的には「何を検証した抽出か」を第一級データとして扱います。
+
+```text
+Experiment
+- baseline_log_id
+- target_variable
+- before_value
+- after_value
+- hypothesis
+- candidate_log_id
+- result
+- score_delta
+- comparability
+```
+
+予定していない条件まで変化した場合はconfounderとして扱い、因果解釈を弱めます。
+
+## 4. 操作変数と観測結果
+
+操作変数の例：
+
+- grind_setting
+- water_temp
+- dose_g
+- water_g
+- bloom_time
+- agitation
+- pour_distribution
+- pour_timing
+
+観測結果の例：
+
+- brew_end_s
+- drawdown_s
+- overall_score
+- taste_defect
+- aroma
+- aftertaste
+- texture
+
+## 5. Relative evaluation
+
+絶対点だけでなく、基準抽出に対する相対結果も扱います。
+
+```text
+relative_result
+- better
+- same
+- worse
+- uncertain
+```
+
+## 6. Automatic diff
+
+基準ログとの差分を自動抽出し、変更点・観測結果・評価差を優先表示します。
+
+予定外の変更があればcomparabilityを下げます。
+
+## 7. Experiment chainと再現性
+
+単発の最高点ではなく、探索履歴と再現性を扱います。
+
+```text
+candidate
+→ promising
+→ reproduced
+```
+
+アプリのゴールは「最高点を1回出すこと」ではなく「再現可能な勝ちパターンを見つけること」です。
+
+## 8. 分析
+
+価値の中心はグラフ描画ではなく、「比較してよいログを自動的に選ぶこと」に置きます。
+
+可能な限り同じBean / Equipment / Dose / Water / Recipe条件の中から、対象変数だけが異なるログを比較します。
+
+## 9. AIの役割
+
+生成AIそのものと競争することは目的にしません。
+
+アプリ側で管理するもの：
+
+- 構造化データ
+- validation
+- 数値計算
+- 比較対象抽出
+- confounder判定
+- Recommendationの構造
+
+AIに任せる候補：
+
+- 過去ログの傾向要約
+- 仮説候補の整理
+- 実験結果の自然言語説明
+- Recommendation理由の補足
+
+CSV / JSON / Markdown exportやAPIを通じて、Spreadsheet、ChatGPT、Python、Jupyterなど外部ツールへ持ち出せる構成を目指します。
+
+---
+
+## Specification freeze
+
+Current MVPの仕様精緻化はここで一旦停止します。
+
+MVP完成前の仕様変更は、実装不能な矛盾、テストで判明した仕様欠陥、データ整合性上の問題が見つかった場合を中心に行います。
+
+新しいPost-MVP機能の詳細化より、Current MVPの実装とテストを優先します。
