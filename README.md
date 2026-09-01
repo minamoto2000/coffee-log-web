@@ -215,15 +215,16 @@ MVPではJSONとしてBrewLogへ保存します。
 
 ### EquipmentSet
 
-- name：必須、空文字不可
-- brewer_label：必須、空文字不可
-- filter_label：必須、空文字不可
-- grinder_label：必須、空文字不可
+- name：必須、trim後に空文字不可
+- brewer_label：必須、trim後に空文字不可
+- filter_label：必須、trim後に空文字不可
+- grinder_label：必須、trim後に空文字不可
 - grind_setting_unit：`click / step / number / other`
 
 ### BrewLog
 
 ```text
+brewed_at は必須かつtimezone offset付き
 equipment_set_id >= 1
 dose_g > 0
 water_g > 0
@@ -235,6 +236,8 @@ pours.length >= 1
 pours[].grams > 0
 pours[].at_s >= 0
 ```
+
+- bean_label：必須、trim後に空文字不可
 
 さらに次を満たします。
 
@@ -261,12 +264,43 @@ brew_end_s >= finish_pouring_s
 
 - consumed_at：必須date
 - source_type：`cafe / convenience_store / other`
-- product_name：必須、空文字不可
+- product_name：必須、trim後に空文字不可
 - overall_score：`1..10`
 
 ---
 
 ## 7. API Request / Response Schema
+
+### EquipmentSetCreate
+
+```text
+EquipmentSetCreate
+- name: str
+- brewer_label: str
+- filter_label: str
+- grinder_label: str
+- grind_setting_unit: click | step | number | other
+- note: str | null
+```
+
+### EquipmentSetUpdate
+
+```text
+EquipmentSetUpdate
+- name?
+- brewer_label?
+- filter_label?
+- grinder_label?
+- grind_setting_unit?
+- note?
+```
+
+### EquipmentSetResponse
+
+```text
+EquipmentSetResponse
+- EquipmentSetの全保存項目
+```
 
 ### PourItem
 
@@ -280,7 +314,7 @@ PourItem
 
 ```text
 BrewLogCreate
-- brewed_at: datetime | null
+- brewed_at: datetime
 - equipment_set_id: int
 - bean_label: str
 - dose_g: float
@@ -294,6 +328,8 @@ BrewLogCreate
 - brew_end_s: int
 - note: str | null
 ```
+
+`brewed_at` は実際に抽出した日時を表すドメインデータであり必須です。API受信時刻で補完せず、timezone offset付きdatetimeを要求します。
 
 ### EvaluationCreate
 
@@ -348,6 +384,16 @@ EvaluationCreate
 
 BrewLogとEvaluationは1トランザクションで保存します。
 
+### BrewLogCreateResponse
+
+`POST /logs` は作成した2resourceをnested responseで返します。
+
+```text
+BrewLogCreateResponse
+- brew_log: BrewLogResponse
+- evaluation: EvaluationResponse
+```
+
 ### BrewLogUpdateRequest
 
 PATCH可能なフィールドは次に限定します。
@@ -384,6 +430,26 @@ EvaluationUpdateRequest
 - texture_defect?
 - memo?
 ```
+
+### ExternalBenchmarkCreate
+
+```text
+ExternalBenchmarkCreate
+- consumed_at: date
+- source_type: cafe | convenience_store | other
+- product_name: str
+- overall_score: int
+- note: str | null
+```
+
+### PATCH null semantics
+
+PATCHではfield omittedとfield explicitly set to `null` を区別します。
+
+- field omitted：その値を変更しない
+- nullable fieldへ明示的に`null`を指定：その値をクリアする
+
+対象例は `note`、`memo`、`grind_setting_value`、`overall_score` です。merge後の完全resourceがdomain validationに違反する場合は422とします。
 
 ### PATCH merge validation
 
@@ -569,6 +635,8 @@ PATCH  /logs/{log_id}
 DELETE /logs/{log_id}
 ```
 
+`GET /logs` は `brewed_at DESC, id DESC` で返します。
+
 ### Evaluation
 
 ```text
@@ -586,6 +654,8 @@ Recommendationは保存しないためGETだけです。
 GET /recommendations/latest
 GET /logs/{log_id}/recommendation
 ```
+
+`latest BrewLog` は `brewed_at` が最大のBrewLogです。同一 `brewed_at` の場合は `id` が大きい方を優先します。
 
 `POST /logs/{log_id}/recommendation` は定義しません。
 
@@ -638,7 +708,8 @@ Post-MVPでExperimentがBrewLogを参照する段階では、BrewLogのsoft dele
 ## 11. Datetime
 
 - API datetime：RFC 3339 / ISO 8601
-- brewed_at：timezone offset付き入力を受け付ける
+- brewed_at：必須。実際に抽出した日時を表し、API受信時刻で補完しない
+- brewed_at：timezone offset付き入力を必須とする
 - 内部保存：UTCへ正規化
 - created_at / updated_at：UTC
 - APIレスポンス：`Z` または `+00:00` 付きUTC
@@ -668,6 +739,7 @@ SQLiteでTEXT/TIMESTAMPを使う場合も、アプリ層ではtimezone-aware dat
 ### EquipmentSet
 
 - 正常入力で作成できる
+- 必須文字列はtrim後に空文字なら422
 - activeなものだけ一覧表示される
 - 編集しても既存BrewLogのsnapshotが変化しない
 - DELETE後は新規ログの選択肢から消える
@@ -676,6 +748,9 @@ SQLiteでTEXT/TIMESTAMPを使う場合も、アプリ層ではtimezone-aware dat
 ### BrewLog + Evaluation create
 
 - `BrewLogCreateRequest` のnested形式で作成できる
+- `POST /logs` は `BrewLogCreateResponse` としてbrew_logとevaluationを返す
+- brewed_at省略時は422
+- timezone offsetなしbrewed_atは422
 - BrewLogとEvaluationが同一トランザクションで保存される
 - Evaluation保存失敗時にBrewLogだけ残らない
 - inactive / nonexistent EquipmentSetでは作成できない
@@ -685,6 +760,8 @@ SQLiteでTEXT/TIMESTAMPを使う場合も、アプリ層ではtimezone-aware dat
 
 ### PATCH
 
+- field omittedとexplicit nullを区別する
+- nullable fieldへのexplicit nullは値のクリアを意味する
 - BrewLog PATCHは既存値とmerge後の完全resourceをvalidationする
 - water_gだけ変更してpours合計と不整合になれば422
 - Evaluation PATCHもmerge後にvalidationする
@@ -703,6 +780,7 @@ SQLiteでTEXT/TIMESTAMPを使う場合も、アプリ層ではtimezone-aware dat
 - agitation_level=0で負値を提案しない
 - grind_setting_unit=otherで数値的な±1提案をしない
 - ExternalBenchmarkの追加・削除でRecommendationが変化しない
+- `/recommendations/latest` は `brewed_at DESC, id DESC` の先頭ログを対象にする
 - logが存在しなければ404
 - Evaluationがなければ404
 - POST recommendation endpointは存在しない
@@ -716,12 +794,15 @@ SQLiteでTEXT/TIMESTAMPを使う場合も、アプリ層ではtimezone-aware dat
 ### Datetime
 
 - timezone offset付きbrewed_atを扱える
+- brewed_at省略時は422
+- timezone offsetなしbrewed_atは422
 - 保存・レスポンスでUTCへ正規化される
 - created_at / updated_atをUTCとして解釈できる
 
 ### ExternalBenchmark
 
 - 作成・一覧・削除できる
+- product_nameはtrim後に空文字なら422
 - overall_scoreが1..10以外なら拒否する
 - Evaluationと同一の評価尺度を使う
 - `/benchmarks/trends/score` が `BenchmarkScoreTrendItem` の配列をconsumed_at昇順で返す
@@ -734,14 +815,19 @@ SQLiteでTEXT/TIMESTAMPを使う場合も、アプリ層ではtimezone-aware dat
 最低限、次をテスト対象にします。
 
 - Pydantic validation
+- required string trim validation
 - BrewLogCreateRequest
+- BrewLogCreateResponse
 - BrewLog + Evaluation transaction
 - BrewLog PATCH merge validation
+- PATCH omitted/null semantics
 - Evaluation PATCH merge validation
 - Evaluation 1:1 constraint
 - EquipmentSet snapshot
 - EquipmentSet soft delete
 - BrewLog delete cascade
+- BrewLog list ordering
+- Recommendation latest ordering
 - Recommendation Decision Table
 - Recommendation feasibility fallback
 - strong mode
@@ -799,21 +885,7 @@ uvicorn main:app --reload
 > このセクションはMVP完成後の未実装構想です。
 > `Experiment`、Automatic diff、Experiment chain、Brew Mode、複数ログ分析、AI補助などはCurrent MVPの完成条件に含めません。
 
-## 1. プロダクトの中心価値
-
-MVP完成後は、単なるコーヒー記録アプリではなく、反復実験を支援するアプリへ発展させます。
-
-> 前回のハンドドリップを基準に1条件だけ変えて抽出し、その変更と味の変化を自動で比較・蓄積することで、自分の好みに合った再現可能な抽出条件を見つける。
-
-専用アプリの価値は次の3点に置きます。
-
-1. 入力摩擦を減らす
-2. 抽出条件と評価を一貫した構造で保存する
-3. 反復実験の差分と結果を自動比較する
-
-## 2. MVP後の最優先プロダクト検証
-
-Current MVP完成後、最初に検証するVertical Sliceはこれです。
+## 最優先Product Slice
 
 ```text
 前回のBrewLogを複製
@@ -823,116 +895,6 @@ Current MVP完成後、最初に検証するVertical Sliceはこれです。
 → Evaluation結果を比較
 ```
 
-この段階ではExperimentテーブル、AI、Brew Mode、高度分析は必須にしません。
+目的は、記録そのものではなく「入力摩擦の削減・構造化・反復実験の自動比較」に専用アプリの価値を置けるか検証することです。
 
-目的は「1変数ずつ変更する実験体験に価値があるか」を最小追加で検証することです。
-
-## 3. Experiment
-
-将来的には「何を検証した抽出か」を第一級データとして扱います。
-
-```text
-Experiment
-- baseline_log_id
-- target_variable
-- before_value
-- after_value
-- hypothesis
-- candidate_log_id
-- result
-- score_delta
-- comparability
-```
-
-予定していない条件まで変化した場合はconfounderとして扱い、因果解釈を弱めます。
-
-## 4. 操作変数と観測結果
-
-操作変数の例：
-
-- grind_setting
-- water_temp
-- dose_g
-- water_g
-- bloom_time
-- agitation
-- pour_distribution
-- pour_timing
-
-観測結果の例：
-
-- brew_end_s
-- drawdown_s
-- overall_score
-- taste_defect
-- aroma
-- aftertaste
-- texture
-
-## 5. Relative evaluation
-
-絶対点だけでなく、基準抽出に対する相対結果も扱います。
-
-```text
-relative_result
-- better
-- same
-- worse
-- uncertain
-```
-
-## 6. Automatic diff
-
-基準ログとの差分を自動抽出し、変更点・観測結果・評価差を優先表示します。
-
-予定外の変更があればcomparabilityを下げます。
-
-## 7. Experiment chainと再現性
-
-単発の最高点ではなく、探索履歴と再現性を扱います。
-
-```text
-candidate
-→ promising
-→ reproduced
-```
-
-アプリのゴールは「最高点を1回出すこと」ではなく「再現可能な勝ちパターンを見つけること」です。
-
-## 8. 分析
-
-価値の中心はグラフ描画ではなく、「比較してよいログを自動的に選ぶこと」に置きます。
-
-可能な限り同じBean / Equipment / Dose / Water / Recipe条件の中から、対象変数だけが異なるログを比較します。
-
-## 9. AIの役割
-
-生成AIそのものと競争することは目的にしません。
-
-アプリ側で管理するもの：
-
-- 構造化データ
-- validation
-- 数値計算
-- 比較対象抽出
-- confounder判定
-- Recommendationの構造
-
-AIに任せる候補：
-
-- 過去ログの傾向要約
-- 仮説候補の整理
-- 実験結果の自然言語説明
-- Recommendation理由の補足
-
-CSV / JSON / Markdown exportやAPIを通じて、Spreadsheet、ChatGPT、Python、Jupyterなど外部ツールへ持ち出せる構成を目指します。
-
----
-
-## Specification freeze
-
-Current MVPの仕様精緻化はここで一旦停止します。
-
-MVP完成前の仕様変更は、実装不能な矛盾、テストで判明した仕様欠陥、データ整合性上の問題が見つかった場合を中心に行います。
-
-新しいPost-MVP機能の詳細化より、Current MVPの実装とテストを優先します。
+Current MVP完成前にこの方向の機能を先行実装しません。
