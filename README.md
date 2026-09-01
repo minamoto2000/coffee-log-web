@@ -1,172 +1,85 @@
 # coffee-log-web
 
-ハンドドリップ最適化アプリのWeb版MVPです。
+ハンドドリップの抽出条件、評価、改善提案を構造化して扱うWebアプリです。
 
 ## READMEの読み方
 
-このREADMEでは、現在のMVPとMVP後のプロダクト構想を明確に分けて扱います。
+このREADMEでは、次の3つを分離して扱います。
 
-- `Current MVP`：現在完成させる対象です。MVPの設計・API・データモデルを記載します。
-- `Post-MVP Product Direction`：MVP完成後の未実装構想です。現在のMVP完成条件には含めません。
+1. `Current MVP Target`：現在完成させるMVPの目標仕様
+2. `Implementation status`：実装済み判定に関するルール
+3. `Post-MVP Product Direction`：MVP完成後の未実装構想
 
-重要：READMEに記載されている設計案を、そのまま実装済みとは扱いません。実装済み判定は、このリポジトリの実コード、テスト、テンプレート、ディレクトリ構成を正本とします。
+重要：READMEに書かれたTarget SpecificationやPost-MVP構想を、そのまま実装済みとは扱いません。
+
+実装済み判定の正本は、このリポジトリの実コード、テスト、テンプレート、ディレクトリ構成です。
+
+MVP範囲の正本は `career-management-private/01b_Portfolio_MVP_Spec.md` です。
 
 ---
 
-# Current MVP
+# Current MVP Target
 
-## MVP設計メモ
+## 1. MVPの目的
 
-この節は、現行の `logs` CRUD を前提に、Web版MVPで `equipment_sets` / `brew_logs` / `evaluations` / `recommendation` へ設計を分けるための下書きです。
-
-ここに書くAPIとモデルは、MVP実装前の設計案です。実装が進んだら、実装済みAPI・DB・Pydanticモデルに合わせて更新します。
-
-### AI連携を見据えた設計
-
-このアプリは、MVP段階ではアプリ内部にLLMを組み込まない方針です。
-
-代わりに、抽出ログ、評価、改善提案を構造化データとして保存し、ChatGPTなどの対話型AIに渡しやすい形にすることを重視します。
-
-生成AIに自由文で抽出記録を管理させることもできますが、条件比較、再現性確認、改善提案の検証には、粉量、湯量、湯温、挽き目、注湯配分、評価、自信度などを一定の形式で保存する必要があります。
-
-そのため、MVPではまずFastAPI、Pydantic、SQLiteを使って、AIに依存しない正本データを作ります。
-
-将来的には、ログ詳細からAI相談用のMarkdown/JSONを出力したり、読み取り専用APIやMCP serverを通じて、外部の対話型AIが抽出履歴を参照できる構成を検討します。
-
-ただし、保存データの正規化、入力バリデーション、recommendの基本ロジックはアプリ側で制御します。
-
-### API一覧案
-
-#### equipment_sets
-
-| Method | Path | 内容 |
-| --- | --- | --- |
-| GET | /equipment-sets | 用具セット一覧を取得 |
-| POST | /equipment-sets | 用具セットを作成 |
-| GET | /equipment-sets/{equipment_set_id} | 用具セットを1件取得 |
-| PATCH | /equipment-sets/{equipment_set_id} | 用具セットを更新 |
-| DELETE | /equipment-sets/{equipment_set_id} | 用具セットを非表示化 |
-
-`DELETE /equipment-sets/{equipment_set_id}` は物理削除ではなく、`is_active = false` にする想定です。
-
-#### brew_logs
-
-APIパスは利用者にとって短く自然な `/logs` を維持します。一方で、DBテーブル名と内部モデル名は `brew_logs` / `BrewLog` とし、保存対象が自宅抽出ログであることを明確にします。
-
-| Method | Path | 内容 |
-| --- | --- | --- |
-| GET | /logs | 抽出ログ一覧を取得 |
-| POST | /logs | 抽出ログを作成 |
-| GET | /logs/{log_id} | 抽出ログを1件取得 |
-| PATCH | /logs/{log_id} | 抽出ログを更新 |
-| DELETE | /logs/{log_id} | 抽出ログを削除 |
-
-#### evaluations
-
-| Method | Path | 内容 |
-| --- | --- | --- |
-| POST | /logs/{log_id}/evaluation | 指定ログの評価を作成 |
-| GET | /logs/{log_id}/evaluation | 指定ログの評価を取得 |
-| PATCH | /logs/{log_id}/evaluation | 指定ログの評価を更新 |
-
-#### recommendation
-
-| Method | Path | 内容 |
-| --- | --- | --- |
-| GET | /logs/latest/recommendation | 直近ログの改善提案を取得 |
-| GET | /logs/{log_id}/recommendation | 指定ログの改善提案を取得 |
-| POST | /logs/{log_id}/recommendation | 指定ログの改善提案を生成 |
-
-### DBテーブル案
-
-#### equipment_sets
-
-| Column | Type | Note |
-| --- | --- | --- |
-| id | INTEGER | Primary key |
-| name | TEXT | 用具セット名 |
-| brewer_label | TEXT | ドリッパー名 |
-| filter_label | TEXT | フィルター名 |
-| grinder_label | TEXT | ミル名 |
-| grind_setting_unit | TEXT | click / step / number / other |
-| note | TEXT | 補足メモ |
-| is_active | BOOLEAN | 選択肢に表示するか |
-| created_at | TEXT | 作成日時 |
-| updated_at | TEXT | 更新日時 |
-
-#### brew_logs
-
-| Column | Type | Note |
-| --- | --- | --- |
-| id | INTEGER | Primary key |
-| brewed_at | TEXT | 抽出日時 |
-| equipment_set_id | INTEGER | equipment_sets.id への参照 |
-| equipment_set_name_snapshot | TEXT | 保存時点の用具セット名 |
-| brewer_label_snapshot | TEXT | 保存時点のドリッパー名 |
-| filter_label_snapshot | TEXT | 保存時点のフィルター名 |
-| grinder_label_snapshot | TEXT | 保存時点のミル名 |
-| grind_setting_unit_snapshot | TEXT | 保存時点の挽き目単位 |
-| bean_label | TEXT | 豆名・商品名・識別名 |
-| dose_g | REAL | 粉量g |
-| water_g | REAL | 湯量g |
-| water_temp_c | REAL | 湯温℃ |
-| grind_setting_value | REAL | 挽き目の値 |
-| bloom_time_s | INTEGER | 蒸らし時間秒 |
-| agitation_level | INTEGER | 攪拌レベル 0〜3 |
-| pours | TEXT | JSON文字列として保存 |
-| finish_pouring_s | INTEGER | 最後の注湯完了秒 |
-| brew_end_s | INTEGER | 抽出終了秒 |
-| note | TEXT | 補足メモ |
-| created_at | TEXT | 作成日時 |
-| updated_at | TEXT | 更新日時 |
-
-`equipment_set_id` だけでなく、保存時点の用具情報を snapshot カラムにコピーします。用具セットを後から編集しても、過去ログの表示内容を変えないためです。
-
-#### evaluations
-
-| Column | Type | Note |
-| --- | --- | --- |
-| id | INTEGER | Primary key |
-| brew_log_id | INTEGER | brew_logs.id への参照 |
-| confidence | INTEGER | 評価の自信度 1〜3 |
-| overall_score | INTEGER | 総合点 1〜10。confidence により任意または必須 |
-| taste_defect | TEXT | none / thin / sour / bitter / not_sweet |
-| aroma_defect | BOOLEAN | 香りに欠点があるか |
-| aftertaste_defect | BOOLEAN | 後味に欠点があるか |
-| texture_defect | BOOLEAN | 質感に欠点があるか |
-| memo | TEXT | 評価メモ |
-| created_at | TEXT | 作成日時 |
-| updated_at | TEXT | 更新日時 |
-
-#### recommendations
-
-MVPでは `recommendations` テーブルは作りません。
-
-recommend結果は `brew_log` と `evaluation` からルールベースで都度計算し、APIレスポンスとして返します。提案履歴の保存はMVP後の拡張候補とします。
-
-### Pydanticモデル案
-
-#### equipment_sets
+MVPでは、次のVertical Sliceを最小構成で成立させます。
 
 ```text
-EquipmentSetCreate
-- name
-- brewer_label
-- filter_label
-- grinder_label
-- grind_setting_unit
-- note
+用具セット登録
+→ 抽出ログ登録
+→ 評価登録
+→ 改善提案を1つ表示
+→ 外部ベンチマークを記録・表示
+```
 
-EquipmentSetUpdate
-- name
-- brewer_label
-- filter_label
-- grinder_label
-- grind_setting_unit
-- note
-- is_active
+この段階の主目的は、FastAPI / Pydantic / SQLite / CRUD / validation / recommendationを一貫した設計として実装し、説明・テストできる状態にすることです。
 
-EquipmentSetRead
+Post-MVPの差別化機能を理由にCurrent MVPを広げません。
+
+## 2. MVPで扱うもの
+
+- EquipmentSetの登録・一覧・編集・非表示化
+- BrewLogの登録・一覧・詳細・編集・削除
+- Evaluationの登録・取得・編集
+- 指定ログまたは直近ログに対するRecommendation
+- ExternalBenchmarkの登録・一覧・削除
+- ExternalBenchmarkの簡易score trend
+- DB制約、validation、HTTPエラー
+- 主要Acceptance Criteriaのテスト
+- ローカル実行手順と設計説明
+
+## 3. MVPで扱わないもの
+
+以下はCurrent MVPへ入れません。
+
+- 認証、多ユーザー対応
+- AI推薦、AI提案履歴
+- 豆マスタ
+- レシピテンプレート
+- Experimentテーブル
+- 前回ログ複製
+- Automatic diff
+- confounder判定
+- Experiment chain
+- relative_result
+- Brew Mode
+- 複数ログを使った高度分析
+- 複雑なグラフ
+- React / Next.js化
+- PostgreSQL
+- Docker
+- デプロイ
+
+---
+
+## 4. データモデル
+
+### EquipmentSet
+
+よく使う用具の組み合わせを保存し、ログ入力を補助します。
+
+```text
+EquipmentSet
 - id
 - name
 - brewer_label
@@ -179,43 +92,16 @@ EquipmentSetRead
 - updated_at
 ```
 
-#### brew_logs
+`DELETE` は物理削除ではなく `is_active=false` とするsoft deleteです。
+
+EquipmentSetを後から編集・非表示化しても、過去ログの表示内容は変更しません。
+
+### BrewLog
+
+自宅抽出の条件を履歴として保存します。
 
 ```text
-PourItem
-- grams
-- at_s
-
-BrewLogCreate
-- brewed_at
-- equipment_set_id
-- bean_label
-- dose_g
-- water_g
-- water_temp_c
-- grind_setting_value
-- bloom_time_s
-- agitation_level
-- pours
-- finish_pouring_s
-- brew_end_s
-- note
-
-BrewLogUpdate
-- brewed_at
-- bean_label
-- dose_g
-- water_g
-- water_temp_c
-- grind_setting_value
-- bloom_time_s
-- agitation_level
-- pours
-- finish_pouring_s
-- brew_end_s
-- note
-
-BrewLogRead
+BrewLog
 - id
 - brewed_at
 - equipment_set_id
@@ -239,28 +125,28 @@ BrewLogRead
 - updated_at
 ```
 
-#### evaluations
+EquipmentSetは参照IDだけでなく、保存時点の情報をsnapshotとしてBrewLog側にもコピーします。
+
+これにより、EquipmentSetを後から編集しても過去の抽出履歴が変化しません。
+
+### Evaluation
+
+1つのBrewLogにつきEvaluationは1件だけです。
 
 ```text
-EvaluationCreate
-- confidence
-- overall_score
-- taste_defect
-- aroma_defect
-- aftertaste_defect
-- texture_defect
-- memo
+BrewLog 1 - 1 Evaluation
+```
 
-EvaluationUpdate
-- confidence
-- overall_score
-- taste_defect
-- aroma_defect
-- aftertaste_defect
-- texture_defect
-- memo
+DBでも次を保証します。
 
-EvaluationRead
+```sql
+UNIQUE (brew_log_id)
+```
+
+保存項目：
+
+```text
+Evaluation
 - id
 - brew_log_id
 - confidence
@@ -274,70 +160,460 @@ EvaluationRead
 - updated_at
 ```
 
-`confidence = 1` の場合、`overall_score` は任意にします。
+#### taste_defectの意味
 
-`confidence = 2` または `confidence = 3` の場合、`overall_score` は必須にします。
+MVPではフィールド名を `taste_defect` のまま維持しますが、意味は「primary taste defect」です。
 
-#### recommendation
+つまり、最も気になる味の欠点を1つ選びます。
 
 ```text
-RecommendationRead
-- target_log_id
-- recommendation_mode
-- action_type
-- direction
-- amount
-- unit
-- message
-- reason
+none
+thin
+sour
+bitter
+not_sweet
 ```
 
-recommendationは保存用モデルではなく、レスポンス用モデルとして扱います。
+`thin` と `sour` のように複数感じた場合も、MVPでは改善時に最優先したい欠点を1つ選びます。
+
+複数taste defectの保存はPost-MVPで必要性を再評価します。
+
+### ExternalBenchmark
+
+カフェ、コンビニ、その他のコーヒーを味覚尺度の参考として記録します。
+
+```text
+ExternalBenchmark
+- id
+- consumed_at
+- source_type
+- product_name
+- overall_score
+- note
+- created_at
+- updated_at
+```
+
+ExternalBenchmarkはRecommendationの入力には使いません。
+
+---
+
+## 5. poursの仕様
+
+`pours[].grams` は「その投で追加した湯量」です。
+
+スケール上の累積重量ではありません。
+
+```json
+[
+  {"grams": 60, "at_s": 0},
+  {"grams": 60, "at_s": 45},
+  {"grams": 60, "at_s": 90},
+  {"grams": 60, "at_s": 135}
+]
+```
+
+- `grams`：その投で追加した湯量[g]
+- `at_s`：抽出開始から、その投を開始した時刻[秒]
+
+MVPではJSONとしてBrewLogへ保存します。
+
+---
+
+## 6. Validation
+
+### EquipmentSet
+
+- name：必須、空文字不可
+- brewer_label：必須、空文字不可
+- filter_label：必須、空文字不可
+- grinder_label：必須、空文字不可
+- grind_setting_unit：`click / step / number / other`
+
+### BrewLog
+
+```text
+equipment_set_id >= 1
+dose_g > 0
+water_g > 0
+0 < water_temp_c <= 100
+grind_setting_value >= 0  // 入力時
+bloom_time_s >= 0
+0 <= agitation_level <= 3
+pours.length >= 1
+pours[].grams > 0
+pours[].at_s >= 0
+```
+
+さらに次を満たす必要があります。
+
+```text
+pours[].at_s は配列順に単調増加
+abs(sum(pours[].grams) - water_g) <= 0.5g
+finish_pouring_s >= 最後のpours[].at_s
+brew_end_s >= finish_pouring_s
+```
+
+`0.5g` の許容差は小数入力時の丸め差を吸収するためです。
+
+### Evaluation
+
+```text
+1 <= confidence <= 3
+1 <= overall_score <= 10  // 入力時
+```
+
+- confidence = 1：overall_scoreは任意
+- confidence = 2 or 3：overall_score必須
+- taste_defect：定義済みenumのみ
+- aroma_defect / aftertaste_defect / texture_defect：boolean
+
+### ExternalBenchmark
+
+- consumed_at：必須date
+- source_type：`cafe / convenience_store / other`
+- product_name：必須、空文字不可
+- overall_score：`1..10`
+
+---
+
+## 7. Recommendation
+
+### 基本方針
+
+MVPではRecommendationを保存しません。
+
+```text
+recommendation = f(brew_log, evaluation)
+```
+
+同じBrewLogとEvaluationには同じ結果を返す、決定的なルールベース関数として扱います。
+
+入力：
+
+- BrewLog
+- Evaluation
+
+入力しないもの：
+
+- 過去ログ
+- ExternalBenchmark
+- AI出力
+
+返すRecommendationは常に1アクションです。
+
+```json
+{
+  "target_log_id": 1,
+  "recommendation_mode": "normal",
+  "action_type": "adjust_water_temp",
+  "direction": "decrease",
+  "amount": 2,
+  "unit": "celsius",
+  "message": "次回は湯温を2℃下げる",
+  "reason": "苦味が出ているため、抽出が強すぎる可能性がある"
+}
+```
+
+### Decision Table
+
+優先順位：
+
+```text
+1. confidence = 1
+2. taste_defect
+3. aroma_defect
+4. aftertaste_defect
+5. texture_defect
+6. 欠点なし + high score
+7. その他
+```
+
+| 条件 | action_type | direction | amount | unit | mode |
+| --- | --- | --- | ---: | --- | --- |
+| confidence = 1 | keep_same | none | 0 | none | experiment |
+| taste_defect = thin | adjust_grind | finer | 1 | selected grind unit | normal* |
+| taste_defect = sour | adjust_water_temp | increase | 2 | celsius | normal* |
+| taste_defect = bitter | adjust_water_temp | decrease | 2 | celsius | normal* |
+| taste_defect = not_sweet | adjust_grind | finer | 1 | selected grind unit | normal* |
+| aroma_defect = true | adjust_water_temp | increase | 2 | celsius | normal* |
+| aftertaste_defect = true | adjust_grind | coarser | 1 | selected grind unit | normal* |
+| texture_defect = true | adjust_agitation | decrease | 1 | level | normal* |
+| 欠点なし + overall_score >= 8 | keep_same | none | 0 | none | normal |
+| 欠点なし + overall_score < 8 / scoreなし | keep_same | none | 0 | none | experiment |
+
+`normal*` は、次をすべて満たす場合だけmodeを `strong` に上書きします。
+
+```text
+confidence = 3
+overall_score <= 3
+何らかの欠点が存在する
+```
+
+strongでもaction自体は変えません。
+
+Recommendationはコーヒー抽出の絶対法則として扱いません。「可能性がある」「次回は1点だけ試す」のように表示し、原因を断定しません。
+
+---
+
+## 8. Target API
+
+ここに書くAPIはCurrent MVPの目標契約です。実装済み判定は実コードを確認してください。
+
+### EquipmentSet
+
+```text
+GET    /equipment-sets
+POST   /equipment-sets
+GET    /equipment-sets/{equipment_set_id}
+PATCH  /equipment-sets/{equipment_set_id}
+DELETE /equipment-sets/{equipment_set_id}
+```
+
+### BrewLog
+
+```text
+GET    /logs
+POST   /logs
+GET    /logs/{log_id}
+PATCH  /logs/{log_id}
+DELETE /logs/{log_id}
+```
+
+`POST /logs` はBrewLogとEvaluationを1トランザクションで作成します。
+
+Evaluation保存に失敗した場合、BrewLogだけを残しません。
+
+### Evaluation
+
+BrewLog作成時にEvaluationも同時作成するため、MVPでは別のEvaluation POSTは持ちません。
+
+```text
+GET   /logs/{log_id}/evaluation
+PATCH /logs/{log_id}/evaluation
+```
+
+### Recommendation
+
+Recommendationは保存しないためGETだけです。
+
+```text
+GET /logs/latest/recommendation
+GET /logs/{log_id}/recommendation
+```
+
+`POST /logs/{log_id}/recommendation` はMVPでは定義しません。
+
+### ExternalBenchmark
+
+```text
+GET    /benchmarks
+POST   /benchmarks
+GET    /benchmarks/{benchmark_id}
+DELETE /benchmarks/{benchmark_id}
+```
+
+### Benchmark score trend
+
+```text
+GET /benchmarks/score-trend
+```
+
+---
+
+## 9. DB制約と削除規則
+
+### Relation
+
+```text
+EquipmentSet 1 - n BrewLog
+BrewLog      1 - 1 Evaluation
+```
+
+SQLiteではForeign Keyを有効化します。
+
+```sql
+PRAGMA foreign_keys = ON;
+```
+
+EvaluationはDBでも1:1を保証します。
+
+```sql
+UNIQUE (brew_log_id)
+```
+
+### Delete policy
+
+- EquipmentSet：soft delete (`is_active=false`)
+- BrewLog：Current MVPでは物理削除
+- Evaluation：親BrewLog削除時に `ON DELETE CASCADE`
+- ExternalBenchmark：物理削除
+
+Post-MVPでExperimentがBrewLogを参照する段階では、BrewLogのsoft delete移行を再検討します。
+
+将来要件だけを理由にCurrent MVPへ先行導入しません。
+
+---
+
+## 10. Datetime
+
+日時は曖昧なローカル時刻として保存しません。
+
+- API datetime：RFC 3339 / ISO 8601
+- brewed_at：timezone offset付き入力を受け付ける
+- 内部保存：UTCへ正規化
+- created_at / updated_at：UTC
+- APIレスポンス：`Z` または `+00:00` 付きUTC
+- consumed_at：datetimeではなくdate
+
+SQLiteでTEXT/TIMESTAMPを使う場合も、アプリ層ではtimezone-aware datetimeとして扱います。
+
+---
+
+## 11. HTTPエラー
+
+| 状況 | Status |
+| --- | ---: |
+| Pydantic / domain validation error | 422 |
+| Resource not found | 404 |
+| inactive EquipmentSetをログ作成に使用 | 404 |
+| PATCH対象フィールドなし | 400 |
+| Evaluation重複など予期した競合 | 409 |
+| Foreign Key等の予期した競合 | 409 |
+
+予期しない例外を200系へ変換しません。
+
+---
+
+## 12. Acceptance Criteria
+
+### EquipmentSet
+
+- 正常入力で作成できる
+- activeなものだけ一覧表示される
+- 編集しても既存BrewLogのsnapshotが変化しない
+- DELETE後は新規ログの選択肢から消える
+- DELETE後も過去BrewLogは表示できる
+
+### BrewLog + Evaluation
+
+- 正常入力でBrewLogとEvaluationが同一操作で保存される
+- Evaluation保存失敗時にBrewLogだけ残らない
+- inactive / nonexistent EquipmentSetでは作成できない
+- snapshotが保存時点のEquipmentSetと一致する
+- `UNIQUE(brew_log_id)` により1ログ1評価をDBで保証する
+- validation違反を拒否する
+- `pours[].grams` を各投の増分として保存する
+- poursの時刻が昇順でない場合は拒否する
+- pours合計とwater_gが許容差を超える場合は拒否する
+- `brew_end_s < finish_pouring_s` は拒否する
+
+### Recommendation
+
+- 同じBrewLog + Evaluationには同じ結果を返す
+- 常に1アクションだけ返す
+- Decision Tableの主要分岐をunit testできる
+- confidence=1では `keep_same / experiment`
+- strong条件ではmodeだけ `strong` へ変わる
+- ExternalBenchmarkの追加・削除でRecommendationが変化しない
+- logが存在しなければ404
+- Evaluationがなければ404
+- POST recommendation endpointは存在しない
+
+### Integrity
+
+- BrewLog削除時にEvaluationも削除される
+- EquipmentSetの非表示化でBrewLogは削除されない
+- 孤児Evaluationを作成できない
+
+### Datetime
+
+- timezone offset付きbrewed_atを扱える
+- 保存・レスポンスでUTCへ正規化される
+- created_at / updated_atをUTCとして解釈できる
+
+### ExternalBenchmark
+
+- 作成・一覧・削除できる
+- overall_scoreが1..10以外なら拒否する
+- score trendを表示できる
+- Recommendationへ影響しない
+
+---
+
+## 13. Test targets
+
+最低限、次をテスト対象にします。
+
+- Pydantic validation
+- BrewLog + Evaluation transaction
+- Evaluation 1:1 constraint
+- EquipmentSet snapshot
+- EquipmentSet soft delete
+- BrewLog delete cascade
+- Recommendation Decision Table
+- strong mode
+- ExternalBenchmarkがRecommendationへ影響しないこと
+- APIの400 / 404 / 409 / 422
+- datetime normalization
+
+---
+
+# Implementation status
+
+このREADMEのTarget Specificationと実装状況は別物です。
+
+実装済みかどうかを判断するときは、以下を確認します。
+
+- `main.py`
+- `models.py`
+- `database.py`
+- `recommendation.py`
+- `templates/`
+- `static/`
+- tests
+
+READMEにAPIやモデルが書かれているだけでは、実装済みとは判定しません。
 
 ---
 
 # Post-MVP Product Direction — Not Implemented
 
 > [!IMPORTANT]
-> このセクションはMVP完成後のプロダクト構想です。以下の `Experiment`、Brew Mode、Automatic diff、Experiment chain、複数ログ分析、AI補助などは、現時点のMVP完成条件にも実装済み機能にも含めません。
->
-> このセクションの存在を理由に、Current MVPのDB・API・画面へ将来機能を先行実装しません。
+> このセクションはMVP完成後の未実装構想です。
+> `Experiment`、Automatic diff、Experiment chain、Brew Mode、複数ログ分析、AI補助などはCurrent MVPの完成条件に含めません。
 
-MVP完成後は、単なる「コーヒー記録アプリ」ではなく、以下を中心とする反復実験支援アプリへ発展させます。
+## 1. プロダクトの中心価値
+
+MVP完成後は、単なるコーヒー記録アプリではなく、反復実験を支援するアプリへ発展させます。
 
 > 前回のハンドドリップを基準に1条件だけ変えて抽出し、その変更と味の変化を自動で比較・蓄積することで、自分の好みに合った再現可能な抽出条件を見つける。
 
-この方向性では、記録そのものではなく、次の3点を専用アプリの価値とします。
+専用アプリの価値は次の3点に置きます。
 
 1. 入力摩擦を減らす
 2. 抽出条件と評価を一貫した構造で保存する
 3. 反復実験の差分と結果を自動比較する
 
-### 1. Core workflow
+## 2. MVP後の最優先プロダクト検証
 
-理想的な利用フローは次です。
+Current MVP完成後、最初に検証するVertical Sliceはこれです。
 
 ```text
-前回またはベストの抽出条件を複製
-↓
-次回変える条件を1つ選ぶ
-↓
-抽出を実行
-↓
-抽出中の時刻や注湯イベントを可能な範囲で自動記録
-↓
-味を評価
-↓
-前回との差分と結果を自動比較
-↓
-再現確認または次の1変更を提案
+前回のBrewLogを複製
+→ 1項目だけ変更
+→ 新しいBrewLogを保存
+→ baselineとの差分を表示
+→ Evaluation結果を比較
 ```
 
-ユーザーに毎回すべての条件を再入力させず、「前回から何を変えるか」だけを意識できる体験を優先します。
+この段階ではExperimentテーブル、AI、Brew Mode、高度分析は必須にしません。
 
-### 2. Experimentを第一級データとして扱う
+目的は「1変数ずつ変更する実験体験に価値があるか」を最小追加で検証することです。
 
-将来的には、単独の `BrewLog` だけでなく「何を検証した抽出か」を表す `Experiment` を導入します。
+## 3. Experiment
+
+将来的には「何を検証した抽出か」を第一級データとして扱います。
 
 ```text
 Experiment
@@ -352,26 +628,11 @@ Experiment
 - comparability
 ```
 
-例：
+単なる差分だけでなく、予定していた変数以外も変化していないかを確認します。
 
-```text
-baseline: BrewLog #38
-target_variable: grind_setting
-before: 22 click
-after: 20 click
-hypothesis: 挽き目を細かくすると薄さが改善する
-candidate: BrewLog #39
-result: better
-score_delta: +2
-```
+意図しない変更があればconfounderとして扱い、因果解釈を弱めます。
 
-重要なのは、単に前回との差分を表示するだけではなく、「予定していた変更以外の条件も変わっていないか」を判定することです。
-
-複数条件が同時に変わっている場合は、改善や悪化を特定の操作だけの効果として解釈しないよう警告します。
-
-### 3. 操作変数と観測結果を分離する
-
-抽出条件を次の2種類に分けて扱います。
+## 4. 操作変数と観測結果
 
 操作変数の例：
 
@@ -394,7 +655,7 @@ score_delta: +2
 - aftertaste
 - texture
 
-これにより、次のような実験履歴を構造化して残します。
+例：
 
 ```text
 操作
@@ -407,23 +668,21 @@ Drawdown: 35s → 52s
 Score: 6 → 8
 ```
 
-### 4. 入力摩擦を減らす
+## 5. 入力摩擦の削減
 
-ログ作成は空のフォーム入力ではなく、原則として既存条件の複製から始めます。
+空フォームから毎回入力するのではなく、既存条件の複製を基本にします。
 
-主な入口：
+入口候補：
 
 - 最新の抽出から淹れる
 - ベスト候補から淹れる
 - レシピテンプレートから淹れる
 
-用具、豆、粉量、湯量、湯温、レシピ、注湯配分などを自動入力し、ユーザーは必要な変更点だけ編集します。
+ユーザーは全条件ではなく「今回何を変えるか」に集中できる状態を目指します。
 
-### 5. Brew Mode
+## 6. Brew Mode
 
-通常のCRUDフォームとは別に、抽出中に使用する専用画面を検討します。
-
-Brew Modeではタイマーを開始し、注湯開始や抽出終了の操作から時刻を記録します。
+抽出中はCRUDフォームではなく専用画面を使う構想です。
 
 ```text
 00:00
@@ -439,22 +698,13 @@ Brew Modeではタイマーを開始し、注湯開始や抽出終了の操作�
 [ BREW END ]
 ```
 
-これにより、例えば以下の `pours` を後から手入力するのではなく、抽出操作から生成できるようにします。
+タイマー操作からpoursの時刻を生成し、後から手入力する量を減らします。
 
-```json
-[
-  {"grams": 60, "at_s": 0},
-  {"grams": 60, "at_s": 46},
-  {"grams": 60, "at_s": 91},
-  {"grams": 60, "at_s": 136}
-]
-```
+Bluetooth対応スケール等との連携はさらに後の候補であり、初期Post-MVPには必須としません。
 
-将来的なBluetooth対応スケール等との連携余地は残しますが、初期実装では必須としません。
+## 7. Relative evaluation
 
-### 6. Relative evaluation
-
-絶対評価だけでなく、基準となる抽出に対する相対評価を持たせます。
+絶対評価に加え、baselineに対する相対評価を持たせる構想です。
 
 ```text
 relative_result
@@ -464,11 +714,11 @@ relative_result
 - uncertain
 ```
 
-`overall_score` は引き続き保持しますが、反復実験では「前回より良かったか」を明示的に保存することで、評価尺度の日ごとの揺れを補います。
+絶対スコアの日ごとの揺れを補い、「前回より良かったか」を反復実験の結果として残します。
 
-### 7. Automatic diff
+## 8. Automatic diff
 
-ログ詳細では、全項目を並べるだけではなく、基準ログとの差分を最優先で表示します。
+ログ詳細では全項目を並べるだけでなく、baselineとの差分を最優先で表示します。
 
 ```text
 変更
@@ -478,19 +728,18 @@ Grind        22 → 20 click
 Dose         15g
 Water        240g
 Temp         92℃
-Equipment    V60 + C40
 
 結果
-Score        6 → 8       +2
-Drawdown     38s → 51s   +13s
+Score        6 → 8
+Drawdown     38s → 51s
 Thin         yes → no
 ```
 
-予定していない条件まで変化している場合は、confounderとして表示し、比較可能性を下げます。
+予定外の変更はconfounderとして表示します。
 
-### 8. Experiment chain
+## 9. Experiment chain
 
-抽出ログは単独の履歴だけでなく、同じ豆や目的に対する探索の流れとして表示します。
+ログを単独の記録ではなく、探索の流れとして表示します。
 
 ```text
 #31  22 click / Score 6 / thin
@@ -504,13 +753,11 @@ Thin         yes → no
 #35  20 click / 92℃ / Score 9 / none
 ```
 
-これにより、「何を試し、何が良くなり、何を戻したか」を追跡できるようにします。
+## 10. 再現可能な成功パターン
 
-### 9. 再現可能な成功パターン
+単発の最高点をそのままBestとは扱いません。
 
-単発の最高点をそのままベストとは扱いません。
-
-成功パターン候補は、例えば次の条件で判定します。
+候補条件：
 
 - overall_score >= 8
 - confidence >= 2
@@ -518,7 +765,7 @@ Thin         yes → no
 - 複数回で良好な結果を再現
 - 重大な欠点が継続していない
 
-状態は次のように段階化できます。
+状態例：
 
 ```text
 candidate
@@ -528,15 +775,15 @@ promising
 reproduced
 ```
 
-アプリのゴールは、最高点を1回出すことではなく、「再現可能な勝ちパターン」を見つけることです。
+目的は最高点を1回出すことではなく、「再現可能な勝ちパターン」を見つけることです。
 
-### 10. 分析の方針
+## 11. 分析
 
-単にグラフを描くことはSpreadsheetでも可能です。
+Spreadsheetでも単純なグラフは作れます。
 
-そのため専用アプリでは、「比較してよいログを自動的に選ぶ」ことを重視します。
+そのため専用アプリでは、グラフ描画そのものではなく「比較してよいログを自動的に選ぶこと」を重視します。
 
-例えば湯温と評価を比較する場合でも、可能な限り次の条件を揃えます。
+例えば湯温比較では、可能な限り次を揃えます。
 
 - 同じ豆
 - 同じ用具セット
@@ -544,23 +791,9 @@ reproduced
 - 同じ湯量
 - 同じレシピ系統
 
-その上で、湯温だけが異なる比較可能なログを抽出します。
+その上で湯温だけが異なるログを比較します。
 
-```text
-Comparable experiments: 6
-
-90℃  avg 6.5
-92℃  avg 8.2
-94℃  avg 7.1
-```
-
-価値の中心はグラフ描画ではなく、比較条件の自動整理に置きます。
-
-### 11. Recommendationの優先順位
-
-将来のrecommendationは、一般的な抽出ルールだけでなく、ユーザー自身の実験履歴を優先します。
-
-優先順位の例：
+## 12. Recommendationの将来優先順位
 
 ```text
 1. 再現確認
@@ -570,33 +803,33 @@ Comparable experiments: 6
 5. AIによる補足説明
 ```
 
-1回改善しただけなら次の条件変更へ進まず、まず同じ条件で再現確認を提案します。
+1回改善しただけなら、さらに別条件を変更するより再現確認を優先します。
 
-### 12. AIの役割
+## 13. AIの役割
 
 生成AIそのものと競争することは目的にしません。
 
-このアプリは、AIが扱いやすい構造化済みの実験データを作る正本として機能します。
+アプリはAIが扱いやすい構造化済み実験データの正本として機能させます。
 
 AIに任せる候補：
 
 - 過去ログの傾向要約
 - 仮説候補の整理
 - 実験結果の自然言語説明
-- recommendation理由の補足
+- Recommendation理由の補足
 
 アプリ側で管理するもの：
 
-- データの正規化
-- 入力バリデーション
+- データ正規化
+- validation
 - 数値計算
-- 比較対象の抽出
+- 比較対象抽出
 - confounder判定
-- action_type / direction / amount / unit の構造
+- action_type / direction / amount / unit
 
-CSV / JSON / Markdown exportやAPIを通じて、Spreadsheet、ChatGPT、Claude、Python、Jupyterなど外部ツールへ持ち出せる構成を目指します。
+CSV / JSON / Markdown exportやAPIを通じ、Spreadsheet、ChatGPT、Claude、Python、Jupyterなど外部ツールへ持ち出せる構成を目指します。
 
-### 13. 将来データモデル案
+## 14. 将来データモデル案
 
 ```text
 EquipmentSet
@@ -645,11 +878,9 @@ Recommendation
 AIRecommendationLog
 ```
 
-`BrewComparison` は必ずしも永続化せず、ログと評価から計算する設計も検討します。
+`BrewComparison` は永続化せず、ログとEvaluationから計算する設計も候補です。
 
-### 14. 将来の中心画面
-
-将来的には、管理画面を並列に増やすより、次の体験を中心にします。
+## 15. 将来の中心画面
 
 ```text
 Home
@@ -680,27 +911,18 @@ Bean Detail
 └─ all logs
 ```
 
-EquipmentSet、Bean、RecipeTemplateなどのCRUDは、これらの中心体験を支える補助機能として扱います。
+EquipmentSet、Bean、RecipeTemplateなどのCRUDは中心体験を支える補助機能として扱います。
 
-### 15. MVPとの関係
+---
 
-この節はMVP完成条件を変更するものではありません。
+# Technical stack
 
-現行MVPでは、まず以下のVertical Sliceを完成させます。
+Current MVPの基本構成：
 
-```text
-用具セット登録
-→ 抽出ログ登録
-→ 評価登録
-→ 改善提案を1つ表示
-```
+- Python
+- FastAPI
+- Pydantic
+- SQLite
+- Jinja2
 
-MVP完成後の優先順位は次を想定します。
-
-1. 前回を複製 → 1変数変更 → automatic diff
-2. Experiment chain → 再現確認
-3. Brew Mode
-4. 比較可能なログを使った分析
-5. AI補助
-
-長期仕様を理由にMVP範囲を広げず、Vertical Sliceの完成を優先します。
+Current MVPでは、バックエンド設計、API、DB、validation、テストを優先します。
