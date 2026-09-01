@@ -31,7 +31,7 @@ def init_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS brew_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                brewed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                brewed_at TIMESTAMP NOT NULL,
                 equipment_set_id INTEGER NOT NULL,
                 bean_label TEXT NOT NULL,
                 dose_g REAL NOT NULL,
