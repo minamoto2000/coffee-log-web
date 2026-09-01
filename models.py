@@ -46,8 +46,7 @@ class Pour(BaseModel):
     at_s: int = Field(ge=0, description="Time in seconds when the pour started")
 
 
-class BrewLogCreate(BaseModel):
-    brewed_at: datetime = Field(description="Timezone-aware timestamp when the brew was made")
+class BrewLogBase(BaseModel):
     equipment_set_id: int = Field(ge=1, description="Reference to equipment_sets.id")
     bean_label: str = Field(min_length=1, max_length=100, description="Bean name, product name, or identifier")
     dose_g: float = Field(description="Dose in grams")
@@ -61,6 +60,10 @@ class BrewLogCreate(BaseModel):
     brew_end_s: int = Field(ge=0, description="Time when brewing was completed")
     note: str | None = Field(default=None, description="Additional notes")
 
+
+class BrewLogCreate(BrewLogBase):
+    brewed_at: datetime = Field(description="Timezone-aware timestamp when the brew was made")
+
     @field_validator("brewed_at")
     @classmethod
     def validate_brewed_at_timezone(cls, value: datetime) -> datetime:
@@ -69,8 +72,9 @@ class BrewLogCreate(BaseModel):
         return value
 
 
-class BrewLogRead(BrewLogCreate):
+class BrewLogRead(BrewLogBase):
     id: int = Field(description="Primary key")
+    brewed_at: datetime = Field(description="Timestamp when the brew was made")
     equipment_set_name_snapshot: str = Field(min_length=1, max_length=100, description="Name of the equipment set")
     brewer_label_snapshot: str = Field(min_length=1, max_length=100, description="Snapshot of the brewer label at the time of brewing")
     grind_setting_unit_snapshot: Literal["click", "step", "number", "other"] = Field(description="Unit for the grind setting")
