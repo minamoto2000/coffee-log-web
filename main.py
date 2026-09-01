@@ -196,7 +196,7 @@ def create_brew_log(request: BrewLogCreateRequest) -> BrewLogRead:
                     note
                 )
                 VALUES (
-                    COALESCE(?, CURRENT_TIMESTAMP),
+                    ?,
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )
                 """,
