@@ -12,20 +12,20 @@
 
     <form id="benchmark-form">
         <label>Date</label>
-        <input type="date" name="consumed_at">
+        <input type="date" name="consumed_at" required>
 
         <label>Source</label>
-            <select name="source_type">
+            <select name="source_type" required>
                 <option value="cafe">Cafe</option>
                 <option value="convenience_store">Convenience Store</option>
                 <option value="other">Other</option>
             </select>
 
         <label>Product</label>
-        <input type="text" name="product_name">
+        <input type="text" name="product_name" required>
 
         <label>Score</label>
-        <input type="number" min="1" max="10" name="overall_score">
+        <input type="number" min="1" max="10" name="overall_score" required>
 
         <label>Note</label>
         <textarea name="note"></textarea>
@@ -33,13 +33,14 @@
         <button type="submit">Save</button>
     </form>
 
+    <p id="error-message"></p>
+    
     <script>
         const form = document.getElementById("benchmark-form");
 
         form.addEventListener("submit", async function(event) {
             event.preventDefault();
 
-            // ここにJavaScriptを書く
             const benchmark = {
                 consumed_at: form.consumed_at.value,
                 source_type: form.source_type.value,
@@ -54,6 +55,14 @@
                 },
                 body: JSON.stringify(benchmark)
             });
+            if (response.ok) {
+                window.location.href = "/pages/benchmarks";
+                return;
+            }
+
+            const error = await response.json();
+            document.getElementById("error-message").textContent =
+                JSON.stringify(error.detail);
         });
     </script>
 </body>

@@ -118,7 +118,12 @@ class ExternalBenchmarkCreate(BaseModel):
     product_name: str = Field(min_length=1, description="Product name of the benchmark")
     overall_score: int = Field(ge=1, le=10, description="Overall score from 1 to 10")
     note: str | None = Field(default=None, description="Optional note about the benchmark")
-
+    @field_validator("product_name", mode="before")
+    @classmethod
+    def trim_product_name(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+        return value
 
 class ExternalBenchmarkRead(ExternalBenchmarkCreate):
     id: int = Field(description="Primary key")
