@@ -19,27 +19,53 @@
                 <th>Product</th>
                 <th>Score</th>
                 <th>Note</th>
+                <th>Action</th>
             </tr>
         </thead>
         <tbody>
             {% if benchmarks %}
                 {% for benchmark in benchmarks %}
                     <tr>
-                        <td>{{ benchmark.id }}</td>
+                        <td>{{ benchmark.id }}</td>                    
                         <td>{{ benchmark.consumed_at }}</td>
                         <td>{{ benchmark.source_type }}</td>
                         <td>{{ benchmark.product_name }}</td>
                         <td>{{ benchmark.overall_score }}</td>
                         <td>{{ benchmark.note }}</td>
+                        <td>
+                            <button type="button" onclick="deleteBenchmark({{ benchmark.id }})">
+                                Delete
+                            </button>
+                        </td>
                     </tr>
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="6">No benchmarks found.</td>
+                    <td colspan="7">No benchmarks found.</td>
                 </tr>
             {% endif %}
         </tbody>
     </table>
+    <script>
+        async function deleteBenchmark(benchmarkId) {
+            const confirmed = confirm("Are you sure you want to delete this benchmark?");
+
+            if (!confirmed) {
+                return;
+            }
+
+            const response = await fetch(`/benchmarks/${benchmarkId}`, {
+                method: "DELETE"
+            });
+
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                const error = await response.json();
+                alert(`Error deleting benchmark: ${error.detail}`);
+            }
+        }
+    </script>
 </body>
 
 </html>
