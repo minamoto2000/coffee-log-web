@@ -59,7 +59,7 @@ def init_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS evaluations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                brew_log_id INTEGER NOT NULL,
+                brew_log_id INTEGER NOT NULL UNIQUE,
                 confidence INTEGER NOT NULL CHECK(confidence BETWEEN 1 AND 3),
                 overall_score INTEGER CHECK(overall_score BETWEEN 1 AND 10),
                 taste_defect TEXT NOT NULL CHECK(taste_defect IN ('none', 'thin', 'sour', 'bitter', 'not_sweet')),
@@ -69,7 +69,7 @@ def init_db() -> None:
                 memo TEXT,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (brew_log_id) REFERENCES brew_logs(id),
+                FOREIGN KEY (brew_log_id) REFERENCES brew_logs(id) ON DELETE CASCADE,
                 CHECK (confidence = 1 OR overall_score IS NOT NULL)
             )
             """

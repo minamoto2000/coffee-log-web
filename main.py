@@ -269,6 +269,21 @@ def read_brew_log(brew_log_id: int) -> BrewLogRead:
 
         return row_to_brew_log_read(brew_log_row)
 
+@app.delete("/logs/{brew_log_id}")
+def delete_brew_log(brew_log_id: int) -> BrewLogRead:
+    with closing(get_connection()) as conn:
+        brew_log_row = conn.execute("SELECT * FROM brew_logs WHERE id = ?", (brew_log_id,)).fetchone()
+
+        if brew_log_row is None:
+            raise HTTPException(status_code=404, detail="Brew log not found")
+
+        deleted_brew_log = row_to_brew_log_read(brew_log_row)
+
+        with conn:
+            conn.execute("DELETE FROM brew_logs WHERE id = ?", (brew_log_id,))
+
+        return deleted_brew_log
+
 @app.get("/logs/latest/recommendation")
 def read_latest_recommendation() -> RecommendationRead:
     with closing(get_connection()) as conn:
