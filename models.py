@@ -49,16 +49,42 @@ class Pour(BaseModel):
 class BrewLogBase(BaseModel):
     equipment_set_id: int = Field(ge=1, description="Reference to equipment_sets.id")
     bean_label: str = Field(min_length=1, max_length=100, description="Bean name, product name, or identifier")
-    dose_g: float = Field(description="Dose in grams")
-    water_g: float = Field(description="Water amount in grams")
-    water_temp_c: float = Field(description="Water temperature in Celsius")
-    grind_setting_value: float | None = Field(default=None, description="Grind setting value")
+    dose_g: float = Field(gt=0, description="Dose in grams")
+    water_g: float = Field(gt=0, description="Water amount in grams")
+    water_temp_c: float = Field(gt=0, le=100, description="Water temperature in Celsius")
+    grind_setting_value: float | None = Field(default=None, ge=0, description="Grind setting value")
     bloom_time_s: int = Field(ge=0, description="Bloom time in seconds")
     agitation_level: int = Field(ge=0, le=3, description="Agitation level from 0 to 3")
     pours: list[Pour] = Field(min_length=1, description="List of pours")
     finish_pouring_s: int = Field(ge=0, description="Time when the last pour was completed")
     brew_end_s: int = Field(ge=0, description="Time when brewing was completed")
     note: str | None = Field(default=None, description="Additional notes")
+    
+    @field_validator("bean_label", mode="before")
+    @classmethod
+    def trim_bean_label(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+        return value
+
+    @model_validator(mode="after")
+    def validate_brew_log_fields(self):
+        for i in range(1, len(self.pours)):
+            if self.pours[i].at_s <= self.pours[i - 1].at_s:
+                raise ValueError("pours.at_s must be strictly increasing")
+
+        total_poured = sum(pour.grams for pour in self.pours)
+
+        if abs(total_poured - self.water_g) > 0.5:
+            raise ValueError("sum of pours.grams must match water_g within 0.5g")
+
+        if self.finish_pouring_s < self.pours[-1].at_s:
+            raise ValueError("finish_pouring_s must be at or after the last pour")
+
+        if self.brew_end_s < self.finish_pouring_s:
+            raise ValueError("brew_end_s must be at or after finish_pouring_s")
+
+        return self
 
 
 class BrewLogCreate(BrewLogBase):
@@ -71,6 +97,46 @@ class BrewLogCreate(BrewLogBase):
             raise ValueError("brewed_at must include a timezone offset")
         return value
 
+class BrewLogUpdateRequest(BaseModel):
+    brewed_at: datetime | None = Field(default=None)
+    bean_label: str | None = Field(default=None, min_length=1, max_length=100)
+    dose_g: float | None = Field(default=None, gt=0)
+    water_g: float | None = Field(default=None, gt=0)
+    water_temp_c: float | None = Field(default=None, gt=0, le=100)
+    grind_setting_value: float | None = Field(default=None, ge=0)
+    bloom_time_s: int | None = Field(default=None, ge=0)
+    agitation_level: int | None = Field(default=None, ge=0, le=3)
+    pours: list[Pour] | None = Field(default=None, min_length=1)
+    finish_pouring_s: int | None = Field(default=None, ge=0)
+    brew_end_s: int | None = Field(default=None, ge=0)
+    note: str | None = Field(default=None)
+
+    @field_validator(
+        "brewed_at",
+        "bean_label",
+        "dose_g",
+        "water_g",
+        "water_temp_c",
+        "bloom_time_s",
+        "agitation_level",
+        "pours",
+        "finish_pouring_s",
+        "brew_end_s",
+    )
+    @classmethod
+    def reject_null(cls, value):
+        if value is None:
+            raise ValueError("field cannot be null")
+        return value
+
+    @field_validator("brewed_at")
+    @classmethod
+    def validate_brewed_at_timezone(cls, value: datetime | None):
+        if value is not None and (
+            value.tzinfo is None or value.utcoffset() is None
+        ):
+            raise ValueError("brewed_at must include a timezone offset")
+        return value
 
 class BrewLogRead(BrewLogBase):
     id: int = Field(description="Primary key")
