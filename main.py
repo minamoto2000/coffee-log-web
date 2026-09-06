@@ -1,12 +1,14 @@
 import json
-
+from pydantic import ValidationError
 from contextlib import closing
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 from database import get_connection
 from models import (
+    BrewLogCreate,
     BrewLogCreateRequest,
     BrewLogRead,
+    BrewLogUpdateRequest,
     EquipmentSetCreate,
     EquipmentSetRead,
     EquipmentSetUpdate,
@@ -268,6 +270,107 @@ def read_brew_log(brew_log_id: int) -> BrewLogRead:
             raise HTTPException(status_code=404, detail="Brew log not found")
 
         return row_to_brew_log_read(brew_log_row)
+
+@app.patch("/logs/{brew_log_id}")
+def update_brew_log(
+    brew_log_id: int,
+    request: BrewLogUpdateRequest,
+) -> BrewLogRead:
+    
+    update_data = request.model_dump(exclude_unset=True)
+
+    if not update_data:
+        raise HTTPException(
+            status_code=400,
+            detail="No fields to update",
+        )
+
+    with closing(get_connection()) as conn:
+        brew_log_row = conn.execute(
+            "SELECT * FROM brew_logs WHERE id = ?",
+            (brew_log_id,),
+        ).fetchone()
+
+        if brew_log_row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Brew log not found",
+            )
+
+        existing_brew_log = row_to_brew_log_read(brew_log_row)
+
+        merged_data = {
+            "brewed_at": existing_brew_log.brewed_at,
+            "equipment_set_id": existing_brew_log.equipment_set_id,
+            "bean_label": existing_brew_log.bean_label,
+            "dose_g": existing_brew_log.dose_g,
+            "water_g": existing_brew_log.water_g,
+            "water_temp_c": existing_brew_log.water_temp_c,
+            "grind_setting_value": existing_brew_log.grind_setting_value,
+            "bloom_time_s": existing_brew_log.bloom_time_s,
+            "agitation_level": existing_brew_log.agitation_level,
+            "pours": existing_brew_log.pours,
+            "finish_pouring_s": existing_brew_log.finish_pouring_s,
+            "brew_end_s": existing_brew_log.brew_end_s,
+            "note": existing_brew_log.note,
+        }
+
+        merged_data.update(update_data)
+
+        try:
+            validated_brew_log = BrewLogCreate(**merged_data)
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=str(exc),
+            )
+
+        pours_json = json.dumps(
+            [pour.model_dump() for pour in validated_brew_log.pours]
+        )
+
+        with conn:
+            conn.execute(
+                """
+                UPDATE brew_logs
+                SET brewed_at = ?,
+                    bean_label = ?,
+                    dose_g = ?,
+                    water_g = ?,
+                    water_temp_c = ?,
+                    grind_setting_value = ?,
+                    bloom_time_s = ?,
+                    agitation_level = ?,
+                    pours = ?,
+                    finish_pouring_s = ?,
+                    brew_end_s = ?,
+                    note = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (
+                    validated_brew_log.brewed_at,
+                    validated_brew_log.bean_label,
+                    validated_brew_log.dose_g,
+                    validated_brew_log.water_g,
+                    validated_brew_log.water_temp_c,
+                    validated_brew_log.grind_setting_value,
+                    validated_brew_log.bloom_time_s,
+                    validated_brew_log.agitation_level,
+                    pours_json,
+                    validated_brew_log.finish_pouring_s,
+                    validated_brew_log.brew_end_s,
+                    validated_brew_log.note,
+                    brew_log_id,
+                ),
+            )
+
+        updated_row = conn.execute(
+            "SELECT * FROM brew_logs WHERE id = ?",
+            (brew_log_id,),
+        ).fetchone()
+
+        return row_to_brew_log_read(updated_row)
 
 @app.delete("/logs/{brew_log_id}")
 def delete_brew_log(brew_log_id: int) -> BrewLogRead:
