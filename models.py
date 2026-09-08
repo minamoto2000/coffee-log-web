@@ -59,7 +59,7 @@ class BrewLogBase(BaseModel):
     finish_pouring_s: int = Field(ge=0, description="Time when the last pour was completed")
     brew_end_s: int = Field(ge=0, description="Time when brewing was completed")
     note: str | None = Field(default=None, description="Additional notes")
-    
+
     @field_validator("bean_label", mode="before")
     @classmethod
     def trim_bean_label(cls, value):
@@ -85,7 +85,6 @@ class BrewLogBase(BaseModel):
             raise ValueError("brew_end_s must be at or after finish_pouring_s")
 
         return self
-
 
 class BrewLogCreate(BrewLogBase):
     brewed_at: datetime = Field(description="Timezone-aware timestamp when the brew was made")
@@ -149,7 +148,6 @@ class BrewLogRead(BrewLogBase):
     created_at: datetime = Field(description="Timestamp when the brew log was created")
     updated_at: datetime = Field(description="Timestamp when the brew log was last updated")
 
-
 class EvaluationCreate(BaseModel):
     confidence: int = Field(ge=1, le=3, description="Confidence level from 1 to 3")
     overall_score: int | None = Field(default=None, ge=1, le=10, description="Overall score from 1 to 10")
@@ -165,18 +163,43 @@ class EvaluationCreate(BaseModel):
             raise ValueError("overall_score is required when confidence is 2 or 3")
         return self
 
-
 class EvaluationRead(EvaluationCreate):
     id: int = Field(description="Primary key")
     brew_log_id: int = Field(description="Reference to brew_logs.id")
     created_at: datetime = Field(description="Timestamp when the evaluation was created")
     updated_at: datetime = Field(description="Timestamp when the evaluation was last updated")
 
+class EvaluationUpdateRequest(BaseModel):
+    confidence: int | None = Field(default=None, ge=1, le=3)
+    overall_score: int | None = Field(default=None, ge=1, le=10)
+    taste_defect: Literal[
+        "none",
+        "thin",
+        "sour",
+        "bitter",
+        "not_sweet",
+    ] | None = Field(default=None)
+    aroma_defect: bool | None = Field(default=None)
+    aftertaste_defect: bool | None = Field(default=None)
+    texture_defect: bool | None = Field(default=None)
+    memo: str | None = Field(default=None)
+
+    @field_validator(
+        "confidence",
+        "taste_defect",
+        "aroma_defect",
+        "aftertaste_defect",
+        "texture_defect",
+    )
+    @classmethod
+    def reject_null(cls, value):
+        if value is None:
+            raise ValueError("field cannot be null")
+        return value
 
 class BrewLogCreateRequest(BaseModel):
     brew_log: BrewLogCreate = Field(description="Brew log data")
     evaluation: EvaluationCreate = Field(description="Evaluation data")
-
 
 class ExternalBenchmarkCreate(BaseModel):
     consumed_at: date = Field(description="Date when the benchmark was consumed")
@@ -195,7 +218,6 @@ class ExternalBenchmarkRead(ExternalBenchmarkCreate):
     id: int = Field(description="Primary key")
     created_at: datetime = Field(description="Timestamp when the benchmark was created")
     updated_at: datetime = Field(description="Timestamp when the benchmark was last updated")
-
 
 class RecommendationRead(BaseModel):
     target_log_id: int = Field(ge=1, description="ID of the target brew log")

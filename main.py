@@ -16,11 +16,11 @@ from models import (
     ExternalBenchmarkCreate,
     ExternalBenchmarkRead,
     RecommendationRead,
+    EvaluationUpdateRequest,
 )
 
 from recommendation import build_recommendation
 from fastapi.staticfiles import StaticFiles
-
 
 app = FastAPI(title="Coffee Log Web")
 
@@ -271,6 +271,94 @@ def read_brew_log(brew_log_id: int) -> BrewLogRead:
 
         return row_to_brew_log_read(brew_log_row)
 
+@app.get("/logs/{brew_log_id}/evaluation")
+def read_evaluation(brew_log_id: int) -> EvaluationRead:
+    with closing(get_connection()) as conn:
+        evaluation_row = conn.execute(
+            "SELECT * FROM evaluations WHERE brew_log_id = ?",
+            (brew_log_id,),
+        ).fetchone()
+
+        if evaluation_row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Evaluation not found",
+            )
+
+        return EvaluationRead(**dict(evaluation_row))
+
+@app.patch("/logs/{brew_log_id}/evaluation")
+def update_evaluation(
+    brew_log_id: int,
+    request: EvaluationUpdateRequest,
+) -> EvaluationRead:
+
+    update_data = request.model_dump(exclude_unset=True)
+
+    if not update_data:
+        raise HTTPException(
+            status_code=400,
+            detail="No fields to update",
+        )
+
+    with closing(get_connection()) as conn:
+        evaluation_row = conn.execute(
+            "SELECT * FROM evaluations WHERE brew_log_id = ?",
+            (brew_log_id,),
+        ).fetchone()
+
+        if evaluation_row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Evaluation not found",
+            )
+
+        existing_evaluation = EvaluationRead(**dict(evaluation_row))
+
+        merged_data = existing_evaluation.model_dump()
+        merged_data.update(update_data)
+
+        try:
+            validated_evaluation = EvaluationRead(**merged_data)
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=str(exc),
+            )
+
+        with conn:
+            conn.execute(
+                """
+                UPDATE evaluations
+                SET confidence = ?,
+                    overall_score = ?,
+                    taste_defect = ?,
+                    aroma_defect = ?,
+                    aftertaste_defect = ?,
+                    texture_defect = ?,
+                    memo = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE brew_log_id = ?
+                """,
+                (
+                    validated_evaluation.confidence,
+                    validated_evaluation.overall_score,
+                    validated_evaluation.taste_defect,
+                    validated_evaluation.aroma_defect,
+                    validated_evaluation.aftertaste_defect,
+                    validated_evaluation.texture_defect,
+                    validated_evaluation.memo,
+                    brew_log_id,
+                ),
+            )
+
+        updated_row = conn.execute(
+            "SELECT * FROM evaluations WHERE brew_log_id = ?",
+            (brew_log_id,),
+        ).fetchone()
+
+        return EvaluationRead(**dict(updated_row))
+
 @app.patch("/logs/{brew_log_id}")
 def update_brew_log(
     brew_log_id: int,
@@ -485,3 +573,4 @@ def new_benchmark_page(request: Request):
         name="new_benchmark_form.html",
         context={}
     )
+
