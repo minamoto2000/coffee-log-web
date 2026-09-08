@@ -9,6 +9,7 @@ from models import (
     BrewLogCreateRequest,
     BrewLogRead,
     BrewLogUpdateRequest,
+    BrewLogCreateResponse,
     EquipmentSetCreate,
     EquipmentSetRead,
     EquipmentSetUpdate,
@@ -156,7 +157,7 @@ def delete_equipment_set(equipment_set_id: int) -> EquipmentSetRead:
         return EquipmentSetRead(**dict(row))
 
 @app.post("/logs")
-def create_brew_log(request: BrewLogCreateRequest) -> BrewLogRead:
+def create_brew_log(request: BrewLogCreateRequest) -> BrewLogCreateResponse:
     brew_log = request.brew_log
     evaluation = request.evaluation
 
@@ -254,7 +255,16 @@ def create_brew_log(request: BrewLogCreateRequest) -> BrewLogRead:
                 "SELECT * FROM brew_logs WHERE id = ?",
                 (brew_log_id,)
             ).fetchone()
-            return row_to_brew_log_read(brew_log_row)
+
+            evaluation_row = conn.execute(
+                "SELECT * FROM evaluations WHERE brew_log_id = ?",
+                (brew_log_id,)
+            ).fetchone()
+
+            return BrewLogCreateResponse(
+                brew_log=row_to_brew_log_read(brew_log_row),
+                evaluation=EvaluationRead(**dict(evaluation_row))
+            )
 
 @app.get("/logs")
 def read_brew_logs() -> list[BrewLogRead]:

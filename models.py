@@ -169,6 +169,10 @@ class EvaluationRead(EvaluationCreate):
     created_at: datetime = Field(description="Timestamp when the evaluation was created")
     updated_at: datetime = Field(description="Timestamp when the evaluation was last updated")
 
+class BrewLogCreateResponse(BaseModel):
+    brew_log: BrewLogRead
+    evaluation: EvaluationRead
+
 class EvaluationUpdateRequest(BaseModel):
     confidence: int | None = Field(default=None, ge=1, le=3)
     overall_score: int | None = Field(default=None, ge=1, le=10)
