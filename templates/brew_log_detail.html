@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Brew Log {{ brew_log.id }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav><a href="/">Home</a><a href="/pages/logs">Brew Logs</a></nav>
+    <h1>Brew Log #{{ brew_log.id }}</h1>
+
+    <div class="card">
+        <h2>Brew</h2>
+        <dl>
+            <dt>Brewed at</dt><dd>{{ brew_log.brewed_at }}</dd>
+            <dt>Bean</dt><dd>{{ brew_log.bean_label }}</dd>
+            <dt>Dose / Water</dt><dd>{{ brew_log.dose_g }} g / {{ brew_log.water_g }} g</dd>
+            <dt>Temperature</dt><dd>{{ brew_log.water_temp_c }} °C</dd>
+            <dt>Grind</dt><dd>{{ brew_log.grind_setting_value }} {{ brew_log.grind_setting_unit_snapshot }}</dd>
+            <dt>Bloom</dt><dd>{{ brew_log.bloom_time_s }} s</dd>
+            <dt>Agitation</dt><dd>{{ brew_log.agitation_level }}</dd>
+            <dt>Pours</dt><dd>{{ brew_log.pours }}</dd>
+            <dt>Finish / End</dt><dd>{{ brew_log.finish_pouring_s }} s / {{ brew_log.brew_end_s }} s</dd>
+        </dl>
+    </div>
+
+    <div class="card">
+        <h2>Equipment Snapshot</h2>
+        <dl>
+            <dt>Set</dt><dd>{{ brew_log.equipment_set_name_snapshot }}</dd>
+            <dt>Brewer</dt><dd>{{ brew_log.brewer_label_snapshot }}</dd>
+            <dt>Filter</dt><dd>{{ brew_log.filter_label_snapshot }}</dd>
+            <dt>Grinder</dt><dd>{{ brew_log.grinder_label_snapshot }}</dd>
+        </dl>
+    </div>
+
+    <div class="card">
+        <h2>Evaluation</h2>
+        <dl>
+            <dt>Confidence</dt><dd>{{ evaluation.confidence }}</dd>
+            <dt>Score</dt><dd>{{ evaluation.overall_score }}</dd>
+            <dt>Taste defect</dt><dd>{{ evaluation.taste_defect }}</dd>
+            <dt>Aroma defect</dt><dd>{{ evaluation.aroma_defect }}</dd>
+            <dt>Aftertaste defect</dt><dd>{{ evaluation.aftertaste_defect }}</dd>
+            <dt>Texture defect</dt><dd>{{ evaluation.texture_defect }}</dd>
+            <dt>Memo</dt><dd>{{ evaluation.memo }}</dd>
+        </dl>
+    </div>
+
+    <div class="card">
+        <h2>Recommendation</h2>
+        <p>{{ recommendation.message }}</p>
+        <p>{{ recommendation.reason }}</p>
+        <p>
+            <a href="/pages/logs/{{ brew_log.id }}/recommendation">Recommendation detail</a>
+        </p>
+    </div>
+
+    <button type="button" onclick="deleteLog()">Delete Brew Log</button>
+    <p id="error-message" class="error"></p>
+    <script>
+        async function deleteLog() {
+            if (!confirm("Delete this brew log and its evaluation?")) return;
+            const response = await fetch("/logs/{{ brew_log.id }}", {method: "DELETE"});
+            if (response.ok) {
+                window.location.href = "/pages/logs";
+                return;
+            }
+            const error = await response.json();
+            document.getElementById("error-message").textContent = JSON.stringify(error.detail);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Add Brew Log</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav><a href="/">Home</a><a href="/pages/logs">Brew Logs</a></nav>
+    <h1>Add Brew Log + Evaluation</h1>
+
+    {% if not equipment_sets %}
+        <p>No active equipment set. <a href="/pages/equipment-sets/new">Create one first.</a></p>
+    {% else %}
+    <form id="brew-form">
+        <h2>Brew Log</h2>
+        <label>Equipment Set
+            <select name="equipment_set_id" required>
+            {% for item in equipment_sets %}
+                <option value="{{ item.id }}">{{ item.name }} — {{ item.brewer_label }} / {{ item.grinder_label }}</option>
+            {% endfor %}
+            </select>
+        </label>
+        <label>Brewed at <input type="datetime-local" name="brewed_at" required></label>
+        <label>Bean <input name="bean_label" required></label>
+        <label>Dose (g) <input type="number" step="0.1" min="0.1" name="dose_g" value="15" required></label>
+        <label>Water (g) <input type="number" step="0.1" min="0.1" name="water_g" value="250" required></label>
+        <label>Water temperature (°C) <input type="number" step="0.1" min="0.1" max="100" name="water_temp_c" value="92" required></label>
+        <label>Grind setting value <input type="number" step="0.1" min="0" name="grind_setting_value"></label>
+        <label>Bloom time (s) <input type="number" min="0" name="bloom_time_s" value="30" required></label>
+        <label>Agitation level
+            <select name="agitation_level">
+                <option value="0">0</option><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option>
+            </select>
+        </label>
+        <label>Pours JSON
+            <textarea name="pours" required>[{"grams":50,"at_s":0},{"grams":100,"at_s":45},{"grams":100,"at_s":90}]</textarea>
+        </label>
+        <label>Finish pouring (s) <input type="number" min="0" name="finish_pouring_s" value="120" required></label>
+        <label>Brew end (s) <input type="number" min="0" name="brew_end_s" value="180" required></label>
+        <label>Note <textarea name="note"></textarea></label>
+
+        <h2>Evaluation</h2>
+        <label>Confidence
+            <select name="confidence">
+                <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option>
+            </select>
+        </label>
+        <label>Overall score <input type="number" min="1" max="10" name="overall_score" value="7"></label>
+        <label>Primary taste defect
+            <select name="taste_defect">
+                <option value="none">none</option>
+                <option value="thin">thin</option>
+                <option value="sour">sour</option>
+                <option value="bitter">bitter</option>
+                <option value="not_sweet">not_sweet</option>
+            </select>
+        </label>
+        <label><input type="checkbox" name="aroma_defect"> Aroma defect</label>
+        <label><input type="checkbox" name="aftertaste_defect"> Aftertaste defect</label>
+        <label><input type="checkbox" name="texture_defect"> Texture defect</label>
+        <label>Evaluation memo <textarea name="memo"></textarea></label>
+        <button type="submit">Save Brew Log</button>
+    </form>
+    {% endif %}
+    <p id="error-message" class="error"></p>
+
+    <script>
+    const form = document.getElementById("brew-form");
+    if (form) {
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            let pours;
+            try {
+                pours = JSON.parse(form.pours.value);
+            } catch (error) {
+                document.getElementById("error-message").textContent = "Pours must be valid JSON.";
+                return;
+            }
+
+            const payload = {
+                brew_log: {
+                    equipment_set_id: Number(form.equipment_set_id.value),
+                    brewed_at: new Date(form.brewed_at.value).toISOString(),
+                    bean_label: form.bean_label.value,
+                    dose_g: Number(form.dose_g.value),
+                    water_g: Number(form.water_g.value),
+                    water_temp_c: Number(form.water_temp_c.value),
+                    grind_setting_value: form.grind_setting_value.value ? Number(form.grind_setting_value.value) : null,
+                    bloom_time_s: Number(form.bloom_time_s.value),
+                    agitation_level: Number(form.agitation_level.value),
+                    pours: pours,
+                    finish_pouring_s: Number(form.finish_pouring_s.value),
+                    brew_end_s: Number(form.brew_end_s.value),
+                    note: form.note.value || null
+                },
+                evaluation: {
+                    confidence: Number(form.confidence.value),
+                    overall_score: form.overall_score.value ? Number(form.overall_score.value) : null,
+                    taste_defect: form.taste_defect.value,
+                    aroma_defect: form.aroma_defect.checked,
+                    aftertaste_defect: form.aftertaste_defect.checked,
+                    texture_defect: form.texture_defect.checked,
+                    memo: form.memo.value || null
+                }
+            };
+
+            const response = await fetch("/logs", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(payload)
+            });
+            if (response.ok) {
+                const data = await response.json();
+                window.location.href = "/pages/logs/" + data.brew_log.id;
+                return;
+            }
+            const error = await response.json();
+            document.getElementById("error-message").textContent = JSON.stringify(error.detail);
+        });
+    }
+    </script>
+</body>
+</html>

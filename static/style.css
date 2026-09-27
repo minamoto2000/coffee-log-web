@@ -15,3 +15,59 @@ td {
     padding: 8px;
     text-align: left;
 }
+
+body {
+    font-family: system-ui, sans-serif;
+    line-height: 1.5;
+}
+
+nav {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+form {
+    display: grid;
+    gap: 12px;
+    max-width: 720px;
+}
+
+input,
+select,
+textarea,
+button {
+    font: inherit;
+    padding: 8px;
+}
+
+textarea {
+    min-height: 96px;
+}
+
+.actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.error {
+    color: #b00020;
+    white-space: pre-wrap;
+}
+
+.card {
+    border: 1px solid #ccc;
+    padding: 16px;
+    margin: 16px 0;
+}
+
+dl {
+    display: grid;
+    grid-template-columns: minmax(160px, 240px) 1fr;
+    gap: 8px 16px;
+}
+
+dt {
+    font-weight: 600;
+}

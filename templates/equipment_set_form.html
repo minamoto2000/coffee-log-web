@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>{% if equipment_set %}Edit{% else %}Add{% endif %} Equipment Set</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav><a href="/">Home</a><a href="/pages/equipment-sets">Equipment Sets</a></nav>
+    <h1>{% if equipment_set %}Edit{% else %}Add{% endif %} Equipment Set</h1>
+    <form id="equipment-form">
+        <label>Name <input name="name" required value="{{ equipment_set.name if equipment_set else '' }}"></label>
+        <label>Brewer <input name="brewer_label" required value="{{ equipment_set.brewer_label if equipment_set else '' }}"></label>
+        <label>Filter <input name="filter_label" required value="{{ equipment_set.filter_label if equipment_set else '' }}"></label>
+        <label>Grinder <input name="grinder_label" required value="{{ equipment_set.grinder_label if equipment_set else '' }}"></label>
+        <label>Grind setting unit
+            <select name="grind_setting_unit" required>
+                {% for value in ["click", "step", "number", "other"] %}
+                <option value="{{ value }}" {% if equipment_set and equipment_set.grind_setting_unit == value %}selected{% endif %}>{{ value }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Note <textarea name="note">{{ equipment_set.note if equipment_set and equipment_set.note else '' }}</textarea></label>
+        <button type="submit">Save</button>
+    </form>
+    <p id="error-message" class="error"></p>
+    <script>
+        const form = document.getElementById("equipment-form");
+        const equipmentSetId = {{ equipment_set.id if equipment_set else "null" }};
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const payload = {
+                name: form.name.value,
+                brewer_label: form.brewer_label.value,
+                filter_label: form.filter_label.value,
+                grinder_label: form.grinder_label.value,
+                grind_setting_unit: form.grind_setting_unit.value,
+                note: form.note.value || null
+            };
+            const response = await fetch(
+                equipmentSetId ? "/equipment-sets/" + equipmentSetId : "/equipment-sets",
+                {
+                    method: equipmentSetId ? "PATCH" : "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(payload)
+                }
+            );
+            if (response.ok) {
+                window.location.href = "/pages/equipment-sets";
+                return;
+            }
+            const error = await response.json();
+            document.getElementById("error-message").textContent = JSON.stringify(error.detail);
+        });
+    </script>
+</body>
+</html>

@@ -394,3 +394,28 @@ def test_brew_log_and_evaluation_creation_rolls_back_as_one_transaction(client):
 
     assert brew_log_count == 0
     assert evaluation_count == 0
+
+
+
+def test_core_vertical_slice_pages_render(client):
+    equipment_set_id = _create_equipment_set(client)
+    brew_log_id = _create_log(
+        client,
+        equipment_set_id,
+        "2026-09-27T08:00:00+00:00",
+    )
+
+    urls = [
+        "/",
+        "/pages/equipment-sets",
+        "/pages/equipment-sets/new",
+        f"/pages/equipment-sets/{equipment_set_id}/edit",
+        "/pages/logs",
+        "/pages/logs/new",
+        f"/pages/logs/{brew_log_id}",
+        f"/pages/logs/{brew_log_id}/recommendation",
+    ]
+
+    for url in urls:
+        response = client.get(url)
+        assert response.status_code == 200, url

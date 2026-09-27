@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Recommendation for Brew Log {{ brew_log.id }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav><a href="/">Home</a><a href="/pages/logs/{{ brew_log.id }}">Brew Log</a></nav>
+    <h1>Recommendation</h1>
+    <div class="card">
+        <dl>
+            <dt>Mode</dt><dd>{{ recommendation.recommendation_mode }}</dd>
+            <dt>Action</dt><dd>{{ recommendation.action_type }}</dd>
+            <dt>Direction</dt><dd>{{ recommendation.direction }}</dd>
+            <dt>Amount</dt><dd>{{ recommendation.amount }} {{ recommendation.unit }}</dd>
+        </dl>
+        <h2>Next step</h2>
+        <p>{{ recommendation.message }}</p>
+        <h2>Reason</h2>
+        <p>{{ recommendation.reason }}</p>
+    </div>
+</body>
+</html>

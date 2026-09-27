@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Brew Logs</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav><a href="/">Home</a><a href="/pages/equipment-sets">Equipment Sets</a></nav>
+    <h1>Brew Logs</h1>
+    <p><a href="/pages/logs/new">Add Brew Log</a></p>
+    <table>
+        <thead><tr><th>ID</th><th>Brewed at</th><th>Bean</th><th>Dose</th><th>Water</th><th>Equipment</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for log in brew_logs %}
+            <tr>
+                <td>{{ log.id }}</td>
+                <td>{{ log.brewed_at }}</td>
+                <td>{{ log.bean_label }}</td>
+                <td>{{ log.dose_g }} g</td>
+                <td>{{ log.water_g }} g</td>
+                <td>{{ log.equipment_set_name_snapshot }}</td>
+                <td><a href="/pages/logs/{{ log.id }}">Detail</a></td>
+            </tr>
+        {% else %}
+            <tr><td colspan="7">No brew logs.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

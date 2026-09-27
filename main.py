@@ -609,3 +609,92 @@ def new_benchmark_page(request: Request):
         context={}
     )
 
+
+
+@app.get("/")
+def home_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="home.html",
+        context={},
+    )
+
+
+@app.get("/pages/equipment-sets")
+def equipment_sets_page(request: Request):
+    equipment_sets = read_equipment_sets()
+    return templates.TemplateResponse(
+        request=request,
+        name="equipment_sets.html",
+        context={"equipment_sets": equipment_sets},
+    )
+
+
+@app.get("/pages/equipment-sets/new")
+def new_equipment_set_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="equipment_set_form.html",
+        context={"equipment_set": None},
+    )
+
+
+@app.get("/pages/equipment-sets/{equipment_set_id}/edit")
+def edit_equipment_set_page(request: Request, equipment_set_id: int):
+    equipment_set = read_equipment_set(equipment_set_id)
+    return templates.TemplateResponse(
+        request=request,
+        name="equipment_set_form.html",
+        context={"equipment_set": equipment_set},
+    )
+
+
+@app.get("/pages/logs")
+def brew_logs_page(request: Request):
+    brew_logs = read_brew_logs()
+    return templates.TemplateResponse(
+        request=request,
+        name="brew_logs.html",
+        context={"brew_logs": brew_logs},
+    )
+
+
+@app.get("/pages/logs/new")
+def new_brew_log_page(request: Request):
+    equipment_sets = read_equipment_sets()
+    return templates.TemplateResponse(
+        request=request,
+        name="brew_log_form.html",
+        context={"equipment_sets": equipment_sets},
+    )
+
+
+@app.get("/pages/logs/{brew_log_id}")
+def brew_log_detail_page(request: Request, brew_log_id: int):
+    brew_log = read_brew_log(brew_log_id)
+    evaluation = read_evaluation(brew_log_id)
+    recommendation = read_recommendation(brew_log_id)
+    return templates.TemplateResponse(
+        request=request,
+        name="brew_log_detail.html",
+        context={
+            "brew_log": brew_log,
+            "evaluation": evaluation,
+            "recommendation": recommendation,
+        },
+    )
+
+
+@app.get("/pages/logs/{brew_log_id}/recommendation")
+def recommendation_page(request: Request, brew_log_id: int):
+    brew_log = read_brew_log(brew_log_id)
+    evaluation = read_evaluation(brew_log_id)
+    recommendation = build_recommendation(brew_log, evaluation)
+    return templates.TemplateResponse(
+        request=request,
+        name="recommendation.html",
+        context={
+            "brew_log": brew_log,
+            "recommendation": recommendation,
+        },
+    )

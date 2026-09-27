@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Equipment Sets</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav><a href="/">Home</a><a href="/pages/logs">Brew Logs</a></nav>
+    <h1>Equipment Sets</h1>
+    <p><a href="/pages/equipment-sets/new">Add Equipment Set</a></p>
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Name</th><th>Brewer</th><th>Filter</th><th>Grinder</th><th>Unit</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+        {% for item in equipment_sets %}
+            <tr>
+                <td>{{ item.id }}</td>
+                <td>{{ item.name }}</td>
+                <td>{{ item.brewer_label }}</td>
+                <td>{{ item.filter_label }}</td>
+                <td>{{ item.grinder_label }}</td>
+                <td>{{ item.grind_setting_unit }}</td>
+                <td class="actions">
+                    <a href="/pages/equipment-sets/{{ item.id }}/edit">Edit</a>
+                    <button type="button" onclick="hideEquipmentSet({{ item.id }})">Hide</button>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="7">No active equipment sets.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <p id="error-message" class="error"></p>
+    <script>
+        async function hideEquipmentSet(id) {
+            if (!confirm("Hide this equipment set? Existing brew logs are kept.")) return;
+            const response = await fetch("/equipment-sets/" + id, {method: "DELETE"});
+            if (response.ok) {
+                window.location.reload();
+                return;
+            }
+            const error = await response.json();
+            document.getElementById("error-message").textContent = JSON.stringify(error.detail);
+        }
+    </script>
+</body>
+</html>
