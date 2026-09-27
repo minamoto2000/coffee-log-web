@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import sqlite3
 
 import database
 import pytest
@@ -317,3 +318,79 @@ def test_brewed_at_and_response_timestamps_are_normalized_to_utc(client):
     assert brewed_at.hour == 9
     assert log_created_at.utcoffset().total_seconds() == 0
     assert evaluation_created_at.utcoffset().total_seconds() == 0
+
+
+
+def test_brew_log_patch_validates_the_merged_resource(client):
+    equipment_set_id = _create_equipment_set(client)
+    brew_log_id = _create_log(
+        client,
+        equipment_set_id,
+        "2026-09-27T08:00:00+00:00",
+    )
+
+    response = client.patch(
+        f"/logs/{brew_log_id}",
+        json={"water_g": 260},
+    )
+
+    assert response.status_code == 422
+
+    unchanged = client.get(f"/logs/{brew_log_id}")
+    assert unchanged.status_code == 200
+    assert unchanged.json()["water_g"] == 250
+
+
+def test_brew_log_delete_cascades_to_evaluation(client):
+    equipment_set_id = _create_equipment_set(client)
+    brew_log_id = _create_log(
+        client,
+        equipment_set_id,
+        "2026-09-27T08:00:00+00:00",
+    )
+
+    delete_response = client.delete(f"/logs/{brew_log_id}")
+    assert delete_response.status_code == 200
+
+    evaluation_response = client.get(f"/logs/{brew_log_id}/evaluation")
+    assert evaluation_response.status_code == 404
+
+    with database.get_connection() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS count FROM evaluations WHERE brew_log_id = ?",
+            (brew_log_id,),
+        ).fetchone()
+    assert row["count"] == 0
+
+
+def test_brew_log_and_evaluation_creation_rolls_back_as_one_transaction(client):
+    equipment_set_id = _create_equipment_set(client)
+
+    with database.get_connection() as conn:
+        conn.execute(
+            """
+            CREATE TRIGGER force_evaluation_insert_failure
+            BEFORE INSERT ON evaluations
+            BEGIN
+                SELECT RAISE(ABORT, 'forced evaluation failure');
+            END;
+            """
+        )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        _create_log(
+            client,
+            equipment_set_id,
+            "2026-09-27T08:00:00+00:00",
+        )
+
+    with database.get_connection() as conn:
+        brew_log_count = conn.execute(
+            "SELECT COUNT(*) AS count FROM brew_logs"
+        ).fetchone()["count"]
+        evaluation_count = conn.execute(
+            "SELECT COUNT(*) AS count FROM evaluations"
+        ).fetchone()["count"]
+
+    assert brew_log_count == 0
+    assert evaluation_count == 0
