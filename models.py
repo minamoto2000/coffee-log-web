@@ -1,6 +1,12 @@
 from pydantic import BaseModel, Field, model_validator, field_validator
 from typing import Literal
-from datetime import datetime, date
+from datetime import datetime, date, timezone
+
+
+def _normalize_stored_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 class EquipmentSetCreate(BaseModel):
@@ -11,12 +17,24 @@ class EquipmentSetCreate(BaseModel):
     grind_setting_unit: Literal["click", "step", "number", "other"] = Field(description="Unit for the grind setting")
     note: str | None = Field(default=None, description="Optional note about the equipment")
 
+    @field_validator("name", "filter_label", "brewer_label", "grinder_label", mode="before")
+    @classmethod
+    def trim_required_strings(cls, value):
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
 
 class EquipmentSetRead(EquipmentSetCreate):
     id: int = Field(description="Primary key")
     is_active: bool = Field(description="Whether the equipment set is active")
     created_at: datetime = Field(description="Timestamp when the equipment set was created")
     updated_at: datetime = Field(description="Timestamp when the equipment set was last updated")
+
+    @field_validator("created_at", "updated_at")
+    @classmethod
+    def normalize_timestamps(cls, value: datetime) -> datetime:
+        return _normalize_stored_datetime(value)
 
 
 class EquipmentSetUpdate(BaseModel):
@@ -26,6 +44,13 @@ class EquipmentSetUpdate(BaseModel):
     grinder_label: str | None = Field(default=None, min_length=1, max_length=100, description="Label for the grinder")
     grind_setting_unit: Literal["click", "step", "number", "other"] | None = Field(default=None, description="Unit for the grind setting")
     note: str | None = Field(default=None, description="Optional note about the equipment")
+
+    @field_validator("name", "filter_label", "brewer_label", "grinder_label", mode="before")
+    @classmethod
+    def trim_required_strings(cls, value):
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
     @field_validator(
         "name",
@@ -94,7 +119,7 @@ class BrewLogCreate(BrewLogBase):
     def validate_brewed_at_timezone(cls, value: datetime) -> datetime:
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("brewed_at must include a timezone offset")
-        return value
+        return value.astimezone(timezone.utc)
 
 class BrewLogUpdateRequest(BaseModel):
     brewed_at: datetime | None = Field(default=None)
@@ -135,7 +160,9 @@ class BrewLogUpdateRequest(BaseModel):
             value.tzinfo is None or value.utcoffset() is None
         ):
             raise ValueError("brewed_at must include a timezone offset")
-        return value
+        if value is None:
+            return value
+        return value.astimezone(timezone.utc)
 
 class BrewLogRead(BrewLogBase):
     id: int = Field(description="Primary key")
@@ -147,6 +174,11 @@ class BrewLogRead(BrewLogBase):
     grinder_label_snapshot: str = Field(min_length=1, max_length=100, description="Snapshot of the grinder label at the time of brewing")
     created_at: datetime = Field(description="Timestamp when the brew log was created")
     updated_at: datetime = Field(description="Timestamp when the brew log was last updated")
+
+    @field_validator("brewed_at", "created_at", "updated_at")
+    @classmethod
+    def normalize_timestamps(cls, value: datetime) -> datetime:
+        return _normalize_stored_datetime(value)
 
 class EvaluationCreate(BaseModel):
     confidence: int = Field(ge=1, le=3, description="Confidence level from 1 to 3")
@@ -168,6 +200,11 @@ class EvaluationRead(EvaluationCreate):
     brew_log_id: int = Field(description="Reference to brew_logs.id")
     created_at: datetime = Field(description="Timestamp when the evaluation was created")
     updated_at: datetime = Field(description="Timestamp when the evaluation was last updated")
+
+    @field_validator("created_at", "updated_at")
+    @classmethod
+    def normalize_timestamps(cls, value: datetime) -> datetime:
+        return _normalize_stored_datetime(value)
 
 class BrewLogCreateResponse(BaseModel):
     brew_log: BrewLogRead
@@ -222,6 +259,11 @@ class ExternalBenchmarkRead(ExternalBenchmarkCreate):
     id: int = Field(description="Primary key")
     created_at: datetime = Field(description="Timestamp when the benchmark was created")
     updated_at: datetime = Field(description="Timestamp when the benchmark was last updated")
+
+    @field_validator("created_at", "updated_at")
+    @classmethod
+    def normalize_timestamps(cls, value: datetime) -> datetime:
+        return _normalize_stored_datetime(value)
 
 class BenchmarkScoreTrendItem(BaseModel):
     benchmark_id: int = Field(ge=1, description="External benchmark ID")

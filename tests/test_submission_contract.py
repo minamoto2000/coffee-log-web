@@ -232,3 +232,88 @@ def test_recommendation_uses_experiment_mode_when_no_action_can_be_selected():
 
     assert result.action_type == "keep_same"
     assert result.recommendation_mode == "experiment"
+
+
+
+def test_equipment_set_required_strings_are_trimmed_and_blank_values_rejected(client):
+    valid_response = client.post(
+        "/equipment-sets",
+        json={
+            "name": "  Test Set  ",
+            "filter_label": "  Paper  ",
+            "brewer_label": "  V60  ",
+            "grinder_label": "  Grinder  ",
+            "grind_setting_unit": "click",
+            "note": None,
+        },
+    )
+    assert valid_response.status_code == 200
+    assert valid_response.json()["name"] == "Test Set"
+    assert valid_response.json()["filter_label"] == "Paper"
+
+    invalid_response = client.post(
+        "/equipment-sets",
+        json={
+            "name": "   ",
+            "filter_label": "Paper",
+            "brewer_label": "V60",
+            "grinder_label": "Grinder",
+            "grind_setting_unit": "click",
+            "note": None,
+        },
+    )
+    assert invalid_response.status_code == 422
+
+
+def test_brewed_at_and_response_timestamps_are_normalized_to_utc(client):
+    equipment_set_id = _create_equipment_set(client)
+    response = client.post(
+        "/logs",
+        json={
+            "brew_log": {
+                "equipment_set_id": equipment_set_id,
+                "bean_label": "Test Beans",
+                "dose_g": 15,
+                "water_g": 250,
+                "water_temp_c": 92,
+                "grind_setting_value": 20,
+                "bloom_time_s": 30,
+                "agitation_level": 1,
+                "pours": [
+                    {"grams": 50, "at_s": 0},
+                    {"grams": 100, "at_s": 45},
+                    {"grams": 100, "at_s": 90},
+                ],
+                "finish_pouring_s": 120,
+                "brew_end_s": 180,
+                "note": None,
+                "brewed_at": "2026-09-27T18:00:00+09:00",
+            },
+            "evaluation": {
+                "confidence": 2,
+                "overall_score": 7,
+                "taste_defect": "none",
+                "aroma_defect": False,
+                "aftertaste_defect": False,
+                "texture_defect": False,
+                "memo": None,
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    brewed_at = datetime.fromisoformat(
+        data["brew_log"]["brewed_at"].replace("Z", "+00:00")
+    )
+    log_created_at = datetime.fromisoformat(
+        data["brew_log"]["created_at"].replace("Z", "+00:00")
+    )
+    evaluation_created_at = datetime.fromisoformat(
+        data["evaluation"]["created_at"].replace("Z", "+00:00")
+    )
+
+    assert brewed_at.utcoffset().total_seconds() == 0
+    assert brewed_at.hour == 9
+    assert log_created_at.utcoffset().total_seconds() == 0
+    assert evaluation_created_at.utcoffset().total_seconds() == 0
