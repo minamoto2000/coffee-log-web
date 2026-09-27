@@ -1,11 +1,65 @@
 from models import BrewLogRead, EvaluationRead, RecommendationRead
 
+
+def _fallback_recommendation(brew_log: BrewLogRead) -> RecommendationRead:
+    return RecommendationRead(
+        target_log_id=brew_log.id,
+        recommendation_mode="experiment",
+        action_type="keep_same",
+        direction="none",
+        amount=0,
+        unit="none",
+        message="次回も同じ条件で抽出する",
+        reason=(
+            "現在値が境界または設定単位が不明確なため、"
+            "同条件で再確認する"
+        ),
+    )
+
+
+def _apply_feasibility_guard(
+    brew_log: BrewLogRead,
+    recommendation: RecommendationRead,
+) -> RecommendationRead:
+    if recommendation.action_type == "adjust_water_temp":
+        if (
+            recommendation.direction == "increase"
+            and brew_log.water_temp_c + recommendation.amount > 100
+        ):
+            return _fallback_recommendation(brew_log)
+        if (
+            recommendation.direction == "decrease"
+            and brew_log.water_temp_c - recommendation.amount <= 0
+        ):
+            return _fallback_recommendation(brew_log)
+
+    if recommendation.action_type == "adjust_agitation":
+        if (
+            recommendation.direction == "decrease"
+            and brew_log.agitation_level - recommendation.amount < 0
+        ):
+            return _fallback_recommendation(brew_log)
+        if (
+            recommendation.direction == "increase"
+            and brew_log.agitation_level + recommendation.amount > 3
+        ):
+            return _fallback_recommendation(brew_log)
+
+    if recommendation.action_type == "adjust_grind":
+        if (
+            brew_log.grind_setting_value is None
+            or brew_log.grind_setting_unit_snapshot == "other"
+        ):
+            return _fallback_recommendation(brew_log)
+
+    return recommendation
+
+
 def build_recommendation(
     brew_log: BrewLogRead,
     evaluation: EvaluationRead
 ) -> RecommendationRead:
 
-    # 評価に自信がない場合は、条件を変更しない。
     if evaluation.confidence == 1:
         return RecommendationRead(
             target_log_id=brew_log.id,
@@ -21,7 +75,6 @@ def build_recommendation(
             ),
         )
 
-    # 何らかの欠点が選択されているか。
     has_defect = (
         evaluation.taste_defect != "none"
         or evaluation.aroma_defect
@@ -29,7 +82,6 @@ def build_recommendation(
         or evaluation.texture_defect
     )
 
-    # strong は提案内容ではなく、提案の強さを表す。
     if (
         evaluation.confidence == 3
         and evaluation.overall_score is not None
@@ -40,12 +92,8 @@ def build_recommendation(
     else:
         recommendation_mode = "normal"
 
-    # -------------------------
-    # 1. taste
-    # -------------------------
-
     if evaluation.taste_defect == "thin":
-        return RecommendationRead(
+        candidate = RecommendationRead(
             target_log_id=brew_log.id,
             recommendation_mode=recommendation_mode,
             action_type="adjust_grind",
@@ -58,9 +106,10 @@ def build_recommendation(
                 "抽出を進める方向で試す"
             ),
         )
+        return _apply_feasibility_guard(brew_log, candidate)
 
     if evaluation.taste_defect == "sour":
-        return RecommendationRead(
+        candidate = RecommendationRead(
             target_log_id=brew_log.id,
             recommendation_mode=recommendation_mode,
             action_type="adjust_water_temp",
@@ -73,9 +122,10 @@ def build_recommendation(
                 "抽出を進める方向で試す"
             ),
         )
+        return _apply_feasibility_guard(brew_log, candidate)
 
     if evaluation.taste_defect == "bitter":
-        return RecommendationRead(
+        candidate = RecommendationRead(
             target_log_id=brew_log.id,
             recommendation_mode=recommendation_mode,
             action_type="adjust_water_temp",
@@ -88,9 +138,10 @@ def build_recommendation(
                 "抽出を弱める方向で試す"
             ),
         )
+        return _apply_feasibility_guard(brew_log, candidate)
 
     if evaluation.taste_defect == "not_sweet":
-        return RecommendationRead(
+        candidate = RecommendationRead(
             target_log_id=brew_log.id,
             recommendation_mode=recommendation_mode,
             action_type="adjust_grind",
@@ -103,13 +154,10 @@ def build_recommendation(
                 "抽出を進める方向で試す"
             ),
         )
-
-    # -------------------------
-    # 2. aroma
-    # -------------------------
+        return _apply_feasibility_guard(brew_log, candidate)
 
     if evaluation.aroma_defect:
-        return RecommendationRead(
+        candidate = RecommendationRead(
             target_log_id=brew_log.id,
             recommendation_mode=recommendation_mode,
             action_type="adjust_water_temp",
@@ -122,13 +170,10 @@ def build_recommendation(
                 "香りの出方が変化するか試す"
             ),
         )
-
-    # -------------------------
-    # 3. aftertaste
-    # -------------------------
+        return _apply_feasibility_guard(brew_log, candidate)
 
     if evaluation.aftertaste_defect:
-        return RecommendationRead(
+        candidate = RecommendationRead(
             target_log_id=brew_log.id,
             recommendation_mode=recommendation_mode,
             action_type="adjust_grind",
@@ -141,13 +186,10 @@ def build_recommendation(
                 "抽出を弱める方向で試す"
             ),
         )
-
-    # -------------------------
-    # 4. texture
-    # -------------------------
+        return _apply_feasibility_guard(brew_log, candidate)
 
     if evaluation.texture_defect:
-        return RecommendationRead(
+        candidate = RecommendationRead(
             target_log_id=brew_log.id,
             recommendation_mode=recommendation_mode,
             action_type="adjust_agitation",
@@ -160,10 +202,7 @@ def build_recommendation(
                 "抽出状態が変化するか試す"
             ),
         )
-
-    # -------------------------
-    # 5. 欠点なし
-    # -------------------------
+        return _apply_feasibility_guard(brew_log, candidate)
 
     if (
         evaluation.overall_score is not None
@@ -183,11 +222,9 @@ def build_recommendation(
             ),
         )
 
-    # confidence 2/3 かつ欠点なしだが、score 8未満。
-    # 変更方向を決める情報がないため、勝手に操作を変更しない。
     return RecommendationRead(
         target_log_id=brew_log.id,
-        recommendation_mode="normal",
+        recommendation_mode="experiment",
         action_type="keep_same",
         direction="none",
         amount=0,

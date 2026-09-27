@@ -16,6 +16,7 @@ from models import (
     EvaluationRead,
     ExternalBenchmarkCreate,
     ExternalBenchmarkRead,
+    BenchmarkScoreTrendItem,
     RecommendationRead,
     EvaluationUpdateRequest,
 )
@@ -269,7 +270,9 @@ def create_brew_log(request: BrewLogCreateRequest) -> BrewLogCreateResponse:
 @app.get("/logs")
 def read_brew_logs() -> list[BrewLogRead]:
     with closing(get_connection()) as conn:
-        brew_log_rows = conn.execute("SELECT * FROM brew_logs").fetchall()
+        brew_log_rows = conn.execute(
+            "SELECT * FROM brew_logs ORDER BY brewed_at DESC, id DESC"
+        ).fetchall()
         return [row_to_brew_log_read(row) for row in brew_log_rows]
 
 @app.get("/logs/{brew_log_id}")
@@ -485,7 +488,7 @@ def delete_brew_log(brew_log_id: int) -> BrewLogRead:
 
         return deleted_brew_log
 
-@app.get("/logs/latest/recommendation")
+@app.get("/recommendations/latest")
 def read_latest_recommendation() -> RecommendationRead:
     with closing(get_connection()) as conn:
         latest_brew_log_row = conn.execute("SELECT * FROM brew_logs ORDER BY brewed_at DESC, id DESC LIMIT 1").fetchone()
@@ -539,6 +542,22 @@ def read_external_benchmarks() -> list[ExternalBenchmarkRead]:
     with closing(get_connection()) as conn:
         benchmark_rows = conn.execute("SELECT * FROM external_benchmarks").fetchall()
         return [ExternalBenchmarkRead(**dict(row)) for row in benchmark_rows]
+
+@app.get("/benchmarks/trends/score")
+def read_benchmark_score_trend() -> list[BenchmarkScoreTrendItem]:
+    with closing(get_connection()) as conn:
+        benchmark_rows = conn.execute(
+            """
+            SELECT
+                id AS benchmark_id,
+                consumed_at,
+                product_name,
+                overall_score
+            FROM external_benchmarks
+            ORDER BY consumed_at ASC, id ASC
+            """
+        ).fetchall()
+        return [BenchmarkScoreTrendItem(**dict(row)) for row in benchmark_rows]
 
 @app.get("/benchmarks/{benchmark_id}")
 def read_external_benchmark(benchmark_id: int) -> ExternalBenchmarkRead:

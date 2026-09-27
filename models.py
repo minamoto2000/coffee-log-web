@@ -223,6 +223,13 @@ class ExternalBenchmarkRead(ExternalBenchmarkCreate):
     created_at: datetime = Field(description="Timestamp when the benchmark was created")
     updated_at: datetime = Field(description="Timestamp when the benchmark was last updated")
 
+class BenchmarkScoreTrendItem(BaseModel):
+    benchmark_id: int = Field(ge=1, description="External benchmark ID")
+    consumed_at: date = Field(description="Date when the benchmark was consumed")
+    product_name: str = Field(min_length=1, description="Product name of the benchmark")
+    overall_score: int = Field(ge=1, le=10, description="Overall score from 1 to 10")
+
+
 class RecommendationRead(BaseModel):
     target_log_id: int = Field(ge=1, description="ID of the target brew log")
     recommendation_mode: Literal[
