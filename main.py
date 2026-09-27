@@ -205,7 +205,7 @@ def create_brew_log(request: BrewLogCreateRequest) -> BrewLogCreateResponse:
                     )
                 """,
                 (
-                    brew_log.brewed_at,
+                    brew_log.brewed_at.isoformat(),
                     brew_log.equipment_set_id,
                     brew_log.bean_label,
                     brew_log.dose_g,
@@ -450,7 +450,7 @@ def update_brew_log(
                 WHERE id = ?
                 """,
                 (
-                    validated_brew_log.brewed_at,
+                    validated_brew_log.brewed_at.isoformat(),
                     validated_brew_log.bean_label,
                     validated_brew_log.dose_g,
                     validated_brew_log.water_g,
@@ -528,7 +528,7 @@ def create_external_benchmark(benchmark: ExternalBenchmarkCreate) -> ExternalBen
         with conn:
             cursor = conn.execute(
                 "INSERT INTO external_benchmarks (consumed_at, source_type, product_name, overall_score, note) VALUES (?, ?, ?, ?, ?)",
-                (benchmark.consumed_at, benchmark.source_type, benchmark.product_name, benchmark.overall_score, benchmark.note)
+                (benchmark.consumed_at.isoformat(), benchmark.source_type, benchmark.product_name, benchmark.overall_score, benchmark.note)
             )
 
             benchmark_id = cursor.lastrowid
