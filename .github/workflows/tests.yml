@@ -16,3 +16,15 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: python -m compileall -q .
       - run: python -m pytest -q
+      - name: Smoke test uvicorn startup
+        run: |
+          python -m uvicorn main:app --host 127.0.0.1 --port 8000 &
+          server_pid=$!
+          trap 'kill $server_pid' EXIT
+          for attempt in {1..20}; do
+            if curl -fsS http://127.0.0.1:8000/equipment-sets > /dev/null; then
+              exit 0
+            fi
+            sleep 0.5
+          done
+          exit 1

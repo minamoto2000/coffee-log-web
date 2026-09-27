@@ -1,9 +1,9 @@
 import json
 from pydantic import ValidationError
-from contextlib import closing
+from contextlib import asynccontextmanager, closing
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.templating import Jinja2Templates
-from database import get_connection
+from database import get_connection, init_db
 from models import (
     BrewLogCreate,
     BrewLogCreateRequest,
@@ -24,7 +24,13 @@ from models import (
 from recommendation import build_recommendation
 from fastapi.staticfiles import StaticFiles
 
-app = FastAPI(title="Coffee Log Web")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="Coffee Log Web", lifespan=lifespan)
 
 templates = Jinja2Templates(directory="templates")
 
