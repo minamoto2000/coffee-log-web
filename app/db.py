@@ -1,4 +1,6 @@
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 DB_PATH = Path(__file__).resolve().parent.parent / "coffee_log_web.db"
@@ -8,6 +10,23 @@ def get_connection() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+@contextmanager
+def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
+    """Explicit write transaction.
+
+    BEGIN IMMEDIATE takes the write lock up front, so a check ("does this
+    condition already have trials?") and the update that depends on it run
+    in the same transaction. Commits on success, rolls back on any error.
+    """
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        yield conn
+    except BaseException:
+        conn.rollback()
+        raise
+    conn.commit()
+
 
 def init_db() -> None:
     with get_connection() as conn:
