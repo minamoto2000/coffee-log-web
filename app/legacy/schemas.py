@@ -1,69 +1,9 @@
+"""Legacy BrewLog / Evaluation schemas. Removed in the last migration step (PR9)."""
 from pydantic import BaseModel, Field, model_validator, field_validator
 from typing import Literal
 from datetime import datetime, timezone
 
-
-def _normalize_stored_datetime(value: datetime) -> datetime:
-    if value.tzinfo is None or value.utcoffset() is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
-
-
-class EquipmentSetCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=100, description="Name of the equipment set")
-    filter_label: str = Field(min_length=1, max_length=100, description="Label for the filter")
-    brewer_label: str = Field(min_length=1, max_length=100, description="Label for the brewer")
-    grinder_label: str = Field(min_length=1, max_length=100, description="Label for the grinder")
-    grind_setting_unit: Literal["click", "step", "number", "other"] = Field(description="Unit for the grind setting")
-    note: str | None = Field(default=None, description="Optional note about the equipment")
-
-    @field_validator("name", "filter_label", "brewer_label", "grinder_label", mode="before")
-    @classmethod
-    def trim_required_strings(cls, value):
-        if isinstance(value, str):
-            return value.strip()
-        return value
-
-
-class EquipmentSetRead(EquipmentSetCreate):
-    id: int = Field(description="Primary key")
-    is_active: bool = Field(description="Whether the equipment set is active")
-    created_at: datetime = Field(description="Timestamp when the equipment set was created")
-    updated_at: datetime = Field(description="Timestamp when the equipment set was last updated")
-
-    @field_validator("created_at", "updated_at")
-    @classmethod
-    def normalize_timestamps(cls, value: datetime) -> datetime:
-        return _normalize_stored_datetime(value)
-
-
-class EquipmentSetUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=100, description="Name of the equipment set")
-    filter_label: str | None = Field(default=None, min_length=1, max_length=100, description="Label for the filter")
-    brewer_label: str | None = Field(default=None, min_length=1, max_length=100, description="Label for the brewer")
-    grinder_label: str | None = Field(default=None, min_length=1, max_length=100, description="Label for the grinder")
-    grind_setting_unit: Literal["click", "step", "number", "other"] | None = Field(default=None, description="Unit for the grind setting")
-    note: str | None = Field(default=None, description="Optional note about the equipment")
-
-    @field_validator("name", "filter_label", "brewer_label", "grinder_label", mode="before")
-    @classmethod
-    def trim_required_strings(cls, value):
-        if isinstance(value, str):
-            return value.strip()
-        return value
-
-    @field_validator(
-        "name",
-        "filter_label",
-        "brewer_label",
-        "grinder_label",
-        "grind_setting_unit",
-    )
-    @classmethod
-    def reject_null(cls, value):
-        if value is None:
-            raise ValueError("field cannot be null")
-        return value
+from app.schemas.common import normalize_stored_datetime
 
 
 class Pour(BaseModel):
@@ -178,7 +118,7 @@ class BrewLogRead(BrewLogBase):
     @field_validator("brewed_at", "created_at", "updated_at")
     @classmethod
     def normalize_timestamps(cls, value: datetime) -> datetime:
-        return _normalize_stored_datetime(value)
+        return normalize_stored_datetime(value)
 
 class EvaluationCreate(BaseModel):
     confidence: int = Field(ge=1, le=3, description="Confidence level from 1 to 3")
@@ -204,7 +144,7 @@ class EvaluationRead(EvaluationCreate):
     @field_validator("created_at", "updated_at")
     @classmethod
     def normalize_timestamps(cls, value: datetime) -> datetime:
-        return _normalize_stored_datetime(value)
+        return normalize_stored_datetime(value)
 
 class BrewLogCreateResponse(BaseModel):
     brew_log: BrewLogRead

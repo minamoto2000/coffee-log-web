@@ -1,11 +1,11 @@
 from datetime import datetime
 import sqlite3
 
-import database
+from app import db as database
 import pytest
 from fastapi.testclient import TestClient
 
-from main import app
+from app.main import app
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ def _create_equipment_set(client, grind_setting_unit="click"):
             "note": None,
         },
     )
-    assert response.status_code == 200
+    assert response.status_code == 201
     return response.json()["id"]
 
 
@@ -100,7 +100,7 @@ def test_equipment_set_required_strings_are_trimmed_and_blank_values_rejected(cl
             "note": None,
         },
     )
-    assert valid_response.status_code == 200
+    assert valid_response.status_code == 201
     assert valid_response.json()["name"] == "Test Set"
     assert valid_response.json()["filter_label"] == "Paper"
 
