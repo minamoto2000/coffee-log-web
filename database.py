@@ -74,18 +74,4 @@ def init_db() -> None:
             )
             """
         )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS external_benchmarks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                consumed_at DATE NOT NULL,
-                source_type TEXT NOT NULL CHECK(source_type IN ( 'cafe','convenience_store', 'other')),
-                product_name TEXT NOT NULL,
-                overall_score INTEGER NOT NULL CHECK(overall_score BETWEEN 1 AND 10),
-                note TEXT,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
     conn.close()

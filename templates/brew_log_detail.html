@@ -47,15 +47,6 @@
         </dl>
     </div>
 
-    <div class="card">
-        <h2>Recommendation</h2>
-        <p>{{ recommendation.message }}</p>
-        <p>{{ recommendation.reason }}</p>
-        <p>
-            <a href="/pages/logs/{{ brew_log.id }}/recommendation">Recommendation detail</a>
-        </p>
-    </div>
-
     <button type="button" onclick="deleteLog()">Delete Brew Log</button>
     <p id="error-message" class="error"></p>
     <script>

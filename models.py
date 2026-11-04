@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, model_validator, field_validator
 from typing import Literal
-from datetime import datetime, date, timezone
+from datetime import datetime, timezone
 
 
 def _normalize_stored_datetime(value: datetime) -> datetime:
@@ -241,71 +241,3 @@ class EvaluationUpdateRequest(BaseModel):
 class BrewLogCreateRequest(BaseModel):
     brew_log: BrewLogCreate = Field(description="Brew log data")
     evaluation: EvaluationCreate = Field(description="Evaluation data")
-
-class ExternalBenchmarkCreate(BaseModel):
-    consumed_at: date = Field(description="Date when the benchmark was consumed")
-    source_type: Literal["cafe", "convenience_store", "other"] = Field(description="Source type of the benchmark")
-    product_name: str = Field(min_length=1, description="Product name of the benchmark")
-    overall_score: int = Field(ge=1, le=10, description="Overall score from 1 to 10")
-    note: str | None = Field(default=None, description="Optional note about the benchmark")
-    @field_validator("product_name", mode="before")
-    @classmethod
-    def trim_product_name(cls, value):
-        if isinstance(value, str):
-            value = value.strip()
-        return value
-
-class ExternalBenchmarkRead(ExternalBenchmarkCreate):
-    id: int = Field(description="Primary key")
-    created_at: datetime = Field(description="Timestamp when the benchmark was created")
-    updated_at: datetime = Field(description="Timestamp when the benchmark was last updated")
-
-    @field_validator("created_at", "updated_at")
-    @classmethod
-    def normalize_timestamps(cls, value: datetime) -> datetime:
-        return _normalize_stored_datetime(value)
-
-class BenchmarkScoreTrendItem(BaseModel):
-    benchmark_id: int = Field(ge=1, description="External benchmark ID")
-    consumed_at: date = Field(description="Date when the benchmark was consumed")
-    product_name: str = Field(min_length=1, description="Product name of the benchmark")
-    overall_score: int = Field(ge=1, le=10, description="Overall score from 1 to 10")
-
-
-class RecommendationRead(BaseModel):
-    target_log_id: int = Field(ge=1, description="ID of the target brew log")
-    recommendation_mode: Literal[
-        "experiment",
-        "normal",
-        "strong",
-    ] = Field(description="Mode of the recommendation")
-
-    action_type: Literal[
-        "keep_same",
-        "adjust_grind",
-        "adjust_water_temp",
-        "adjust_bloom_time",
-        "adjust_agitation",
-    ] = Field(description="Type of action recommended")
-
-    direction: Literal[
-        "none",
-        "increase",
-        "decrease",
-        "finer",
-        "coarser",
-    ] = Field(description="Direction of the recommended action")
-
-    amount: int = Field(ge=0, description="Amount of the recommended action")
-
-    unit: Literal[
-        "click",
-        "step",
-        "number",
-        "other",
-        "celsius",
-        "level",
-        "none",
-    ]
-    message: str = Field(description="Message explaining the recommendation")
-    reason: str = Field(description="Reason for the recommendation")
