@@ -1,18 +1,39 @@
 # Coffee Log Web
 
-ハンドドリップの抽出条件と評価を記録し、次回変更する操作を1つ返すFastAPI製Webアプリです。
+コーヒー抽出の条件と測定結果の関係を、自分の器具で検証するためのFastAPI製Webアプリです。
 
-このリポジトリは一社目のBackend / Web Engineer就活で提示する主成果物として、API設計、Pydantic validation、SQLiteの参照整合性、transaction、PATCH semantics、ルールベースRecommendation、テストを説明できる状態を目的にしています。
+このリポジトリは一社目のBackend / Web Engineer就活で提示する主成果物です。API設計、Pydantic validation、SQLiteの参照整合性、transaction、PATCH semantics、テストを説明できる状態を目的にしています。
 
-## Core Vertical Slice
+## Status: 再設計への移行中
 
-現在の実装で、次の一連の操作をWeb画面またはAPIから実行できます。
+2026-11-04に開発目的を「抽出記録と改善提案」から「抽出の実験・測定・検証」へ変更しました。理由は次の3点です。
+
+1. 多様な抽出方法を、抽出全体に固定したパラメータで表現することに限界がある
+2. 科学的根拠が不十分な改善提案を中心機能にしない
+3. 条件を変えたときの影響を、TDSなどの測定で自分で確かめられるようにする
+
+新しいCore Vertical Sliceは次のとおりです（未実装）。
+
+```text
+実験作成（2条件＋抽出工程）
+→ 試行記録（TDS・飲料重量・官能評価）
+→ 条件比較（記述統計・ばらつき・注意）
+```
+
+移行はPR単位で進め、各PRはテストが通る状態で閉じます。
+
+- 完了：ルールベースRecommendationとExternalBenchmarkの削除
+- 次：パッケージ構造の整理、実験・条件・工程・試行のドメインとAPI、比較API、画面
+- 最後：旧ドメイン（BrewLog / Evaluation）の撤去とREADMEの全面改稿
+
+移行前の版（記録＋ルールベース改善提案）はタグ `legacy-v1-recommendation` で参照できます。
+
+### 現在動作する機能
 
 ```text
 Equipment Setを登録
 → Brew Log + Evaluationを同時登録
 → 保存したログを確認
-→ Recommendationを1つ表示
 ```
 
 主な画面:
@@ -23,13 +44,7 @@ Equipment Setを登録
 - `/pages/equipment-sets/{id}/edit` — Equipment Set編集
 - `/pages/logs` — Brew Log一覧
 - `/pages/logs/new` — Brew Log + Evaluation作成
-- `/pages/logs/{id}` — Brew Log詳細、snapshot、Evaluation、Recommendation
-- `/pages/logs/{id}/recommendation` — Recommendation詳細
-
-ExternalBenchmarkには一覧・作成画面があります。
-
-- `/pages/benchmarks`
-- `/pages/benchmarks/new`
+- `/pages/logs/{id}` — Brew Log詳細、snapshot、Evaluation
 
 ## Technology
 
@@ -41,7 +56,7 @@ ExternalBenchmarkには一覧・作成画面があります。
 - pytest
 - GitHub Actions
 
-フロントエンドはCurrent MVPではJinja2 + 最小限のJavaScriptです。React / Next.jsは使用していません。
+フロントエンドはJinja2 + 最小限のJavaScriptです。React / Next.jsは使用していません。
 
 ## Data Model
 
@@ -102,12 +117,6 @@ UNIQUE (brew_log_id)
 
 BrewLog削除時はSQLite Foreign Keyの `ON DELETE CASCADE` によりEvaluationも削除されます。
 
-### ExternalBenchmark
-
-カフェ等で飲んだ外部基準のscoreを、Evaluationと同じ1〜10尺度で記録します。
-
-Recommendationの入力には使用しません。
-
 ## API
 
 ### EquipmentSet
@@ -156,61 +165,6 @@ PATCH /logs/{log_id}/evaluation
 
 Evaluation単体のPOST endpointはありません。BrewLog作成時に同時作成します。
 
-### Recommendation
-
-```text
-GET /recommendations/latest
-GET /logs/{log_id}/recommendation
-```
-
-RecommendationはDBへ保存せず、BrewLog + Evaluationから決定的に計算します。
-
-Decision priority:
-
-1. `confidence = 1`
-2. primary `taste_defect`
-3. `aroma_defect`
-4. `aftertaste_defect`
-5. `texture_defect`
-6. 欠点なし + `overall_score >= 8`
-7. その他
-
-返すactionは常に1つです。
-
-実行不能なRecommendationは次へfallbackします。
-
-```text
-recommendation_mode = experiment
-action_type = keep_same
-direction = none
-amount = 0
-unit = none
-```
-
-例:
-
-- 99℃から+2℃を提案しない
-- agitation level 0から-1を提案しない
-- `grind_setting_unit = other` で数値的な±1を提案しない
-- grind setting value未入力時にgrind adjustmentを提案しない
-
-### ExternalBenchmark
-
-```text
-GET    /benchmarks
-POST   /benchmarks
-GET    /benchmarks/{benchmark_id}
-DELETE /benchmarks/{benchmark_id}
-GET    /benchmarks/trends/score
-```
-
-`GET /benchmarks/trends/score` は次のfieldsを `consumed_at ASC, id ASC` で返します。
-
-- `benchmark_id`
-- `consumed_at`
-- `product_name`
-- `overall_score`
-
 ## Validation and PATCH Semantics
 
 必須文字列はtrim後にvalidationします。空文字は422です。
@@ -219,7 +173,6 @@ GET    /benchmarks/trends/score
 
 - EquipmentSetの `name`, `filter_label`, `brewer_label`, `grinder_label`
 - BrewLogの `bean_label`
-- ExternalBenchmarkの `product_name`
 
 BrewLog domain validationの例:
 
@@ -248,9 +201,8 @@ BrewLog / Evaluation PATCHは、既存値とpatch値をmergeした完全resource
 - timezone offsetなしの `brewed_at` は422
 - `brewed_at` はUTCへ正規化して保存
 - responseの `brewed_at`, `created_at`, `updated_at` はUTCとして返す
-- `consumed_at` はdateとして扱う
 
-SQLiteへdatetime/dateを書き込む際はISO文字列へ明示的にserializeしています。
+SQLiteへdatetimeを書き込む際はISO文字列へ明示的にserializeしています。
 
 ## Database Integrity
 
@@ -317,12 +269,9 @@ python -m pytest -q
 - BrewLog + Evaluation transaction rollback
 - BrewLog削除時のEvaluation cascade
 - BrewLog list ordering
-- latest Recommendation ordering
-- Recommendation feasibility fallback
 - EquipmentSet required-string trim
 - UTC normalization
-- ExternalBenchmark score trend schema / ordering
-- Core Vertical Slice Jinja pages
+- 主要Jinja画面の表示
 
 ## CI / Reproducibility
 
@@ -336,8 +285,6 @@ python -m pytest -q
 6. uvicorn startup smoke test
 7. `GET /equipment-sets` が200を返すことを確認
 
-2026-09-27時点の最新確認では、CIで20 testsがpassし、clean checkoutからuvicorn起動まで成功しています。
-
 ## Repository Structure
 
 ```text
@@ -345,7 +292,6 @@ python -m pytest -q
 ├── main.py
 ├── models.py
 ├── database.py
-├── recommendation.py
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── templates/
@@ -359,21 +305,14 @@ python -m pytest -q
 - `main.py`: FastAPI routes / Jinja pages / DB操作のapplication layer
 - `models.py`: request / response schemaとdomain validation
 - `database.py`: SQLite connection / schema
-- `recommendation.py`: 決定的なRecommendation rule
 - `tests/`: API、domain、integrity、submission acceptance tests
 
-## Current MVP Boundary
+## Out of Scope
 
-このMVPには次を含めません。
+再設計後も次は対象外です。
 
 - authentication / multi-user
-- AI recommendation
-- React / Next.js
-- PostgreSQL
-- Docker
-- cloud deployment
-- Experiment table / experiment chain
-- automatic diff
-- advanced analytics
-
-これらはSubmission readinessの前提ではありません。
+- AIによる改善提案・自動最適化
+- 測定器との自動連携
+- 統計的仮説検定による「効果あり」の判定
+- React / Next.js、PostgreSQL、Docker、cloud deployment

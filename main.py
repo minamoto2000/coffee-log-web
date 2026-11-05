@@ -14,14 +14,9 @@ from models import (
     EquipmentSetRead,
     EquipmentSetUpdate,
     EvaluationRead,
-    ExternalBenchmarkCreate,
-    ExternalBenchmarkRead,
-    BenchmarkScoreTrendItem,
-    RecommendationRead,
     EvaluationUpdateRequest,
 )
 
-from recommendation import build_recommendation
 from fastapi.staticfiles import StaticFiles
 
 @asynccontextmanager
@@ -494,123 +489,6 @@ def delete_brew_log(brew_log_id: int) -> BrewLogRead:
 
         return deleted_brew_log
 
-@app.get("/recommendations/latest")
-def read_latest_recommendation() -> RecommendationRead:
-    with closing(get_connection()) as conn:
-        latest_brew_log_row = conn.execute("SELECT * FROM brew_logs ORDER BY brewed_at DESC, id DESC LIMIT 1").fetchone()
-        if latest_brew_log_row is None:
-            raise HTTPException(status_code=404, detail="No brew logs found")
-
-        latest_brew_log = row_to_brew_log_read(latest_brew_log_row)
-        evaluation_row = conn.execute("SELECT * FROM evaluations WHERE brew_log_id = ?", (latest_brew_log.id,)).fetchone()
-        if evaluation_row is None:
-            raise HTTPException(status_code=404, detail="Evaluation not found")
-
-        evaluation = EvaluationRead(**dict(evaluation_row))
-        recommendation = build_recommendation(latest_brew_log, evaluation)
-        return recommendation
-
-@app.get("/logs/{brew_log_id}/recommendation")
-def read_recommendation(brew_log_id: int) -> RecommendationRead:
-    with closing(get_connection()) as conn:
-        brew_log_row = conn.execute("SELECT * FROM brew_logs WHERE id = ?", (brew_log_id,)).fetchone()
-        if brew_log_row is None:
-            raise HTTPException(status_code=404, detail="Brew log not found")
-
-        evaluation_row = conn.execute("SELECT * FROM evaluations WHERE brew_log_id = ?", (brew_log_id,)).fetchone()
-        if evaluation_row is None:
-            raise HTTPException(status_code=404, detail="Evaluation not found")
-
-        brew_log = row_to_brew_log_read(brew_log_row)
-        evaluation = EvaluationRead(**dict(evaluation_row))
-
-        recommendation = build_recommendation(brew_log, evaluation)
-        return recommendation
-
-@app.post("/benchmarks")
-def create_external_benchmark(benchmark: ExternalBenchmarkCreate) -> ExternalBenchmarkRead:
-
-    with closing(get_connection()) as conn:
-        with conn:
-            cursor = conn.execute(
-                "INSERT INTO external_benchmarks (consumed_at, source_type, product_name, overall_score, note) VALUES (?, ?, ?, ?, ?)",
-                (benchmark.consumed_at.isoformat(), benchmark.source_type, benchmark.product_name, benchmark.overall_score, benchmark.note)
-            )
-
-            benchmark_id = cursor.lastrowid
-
-        benchmark_row = conn.execute("SELECT * FROM external_benchmarks WHERE id = ?", (benchmark_id,)).fetchone()
-
-        return ExternalBenchmarkRead(**dict(benchmark_row))
-
-@app.get("/benchmarks")
-def read_external_benchmarks() -> list[ExternalBenchmarkRead]:
-    with closing(get_connection()) as conn:
-        benchmark_rows = conn.execute("SELECT * FROM external_benchmarks").fetchall()
-        return [ExternalBenchmarkRead(**dict(row)) for row in benchmark_rows]
-
-@app.get("/benchmarks/trends/score")
-def read_benchmark_score_trend() -> list[BenchmarkScoreTrendItem]:
-    with closing(get_connection()) as conn:
-        benchmark_rows = conn.execute(
-            """
-            SELECT
-                id AS benchmark_id,
-                consumed_at,
-                product_name,
-                overall_score
-            FROM external_benchmarks
-            ORDER BY consumed_at ASC, id ASC
-            """
-        ).fetchall()
-        return [BenchmarkScoreTrendItem(**dict(row)) for row in benchmark_rows]
-
-@app.get("/benchmarks/{benchmark_id}")
-def read_external_benchmark(benchmark_id: int) -> ExternalBenchmarkRead:
-    with closing(get_connection()) as conn:
-        benchmark_row = conn.execute("SELECT * FROM external_benchmarks WHERE id = ?", (benchmark_id,)).fetchone()
-        if benchmark_row is None:
-            raise HTTPException(status_code=404, detail="External benchmark not found")
-
-        return ExternalBenchmarkRead(**dict(benchmark_row))
-
-@app.delete("/benchmarks/{benchmark_id}")
-def delete_external_benchmark(
-    benchmark_id: int
-) -> ExternalBenchmarkRead:
-
-    with closing(get_connection()) as conn:
-        benchmark_row = conn.execute("SELECT * FROM external_benchmarks WHERE id = ?", (benchmark_id,)).fetchone()
-        if benchmark_row is None:
-            raise HTTPException(status_code=404, detail="External benchmark not found")
-
-        with conn:
-            conn.execute("DELETE FROM external_benchmarks WHERE id = ?", (benchmark_id,))
-
-    return ExternalBenchmarkRead(**dict(benchmark_row))
-
-@app.get("/pages/benchmarks")
-def read_benchmarks(request: Request):
-    with closing(get_connection()) as conn:
-        benchmark_rows = conn.execute("SELECT * FROM external_benchmarks").fetchall()
-        benchmarks = [ExternalBenchmarkRead(**dict(row)) for row in benchmark_rows]
-    
-    return templates.TemplateResponse(
-        request=request,
-        name="benchmarks.html",
-        context={"benchmarks": benchmarks}
-    )
-
-@app.get("/pages/benchmarks/new")
-def new_benchmark_page(request: Request):
-    return templates.TemplateResponse(
-        request=request,
-        name="new_benchmark_form.html",
-        context={}
-    )
-
-
-
 @app.get("/")
 def home_page(request: Request):
     return templates.TemplateResponse(
@@ -673,28 +551,11 @@ def new_brew_log_page(request: Request):
 def brew_log_detail_page(request: Request, brew_log_id: int):
     brew_log = read_brew_log(brew_log_id)
     evaluation = read_evaluation(brew_log_id)
-    recommendation = read_recommendation(brew_log_id)
     return templates.TemplateResponse(
         request=request,
         name="brew_log_detail.html",
         context={
             "brew_log": brew_log,
             "evaluation": evaluation,
-            "recommendation": recommendation,
-        },
-    )
-
-
-@app.get("/pages/logs/{brew_log_id}/recommendation")
-def recommendation_page(request: Request, brew_log_id: int):
-    brew_log = read_brew_log(brew_log_id)
-    evaluation = read_evaluation(brew_log_id)
-    recommendation = build_recommendation(brew_log, evaluation)
-    return templates.TemplateResponse(
-        request=request,
-        name="recommendation.html",
-        context={
-            "brew_log": brew_log,
-            "recommendation": recommendation,
         },
     )

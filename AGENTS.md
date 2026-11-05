@@ -19,9 +19,14 @@
 
 ## 現在の目的
 
-`coffee-log-web` を一社目就職で説明・変更・Debug・Testできる提出品質に保つ。
+`coffee-log-web` を一社目就職で説明・変更・Debug・Testできる提出品質にする。
 
-Current MVPを不用意に広げない。
+2026-11-04に開発目的を「実験・測定・検証アプリ」へ変更した。MVP範囲と移行手順の正本は `career-management-private` の `01b_Portfolio_MVP_Spec.md`（第12節がPR1〜PR9の順序）である。
+
+- 移行はPR単位で進め、各PRはテストが通る状態で閉じる
+- 移行前の版はタグ `legacy-v1-recommendation` で参照する。旧Recommendation・ExternalBenchmarkを復活させない
+- PR3〜PR7（domain・schema・API・比較）は本人が実装し、AIはレビューとヒントに回る
+- 01bに含まれない機能を先行実装しない
 
 提出準備では、機能追加よりも以下を優先する。
 
