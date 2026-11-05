@@ -1,9 +1,11 @@
+import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent.parent / "coffee_log_web.db"
+# COFFEE_LOG_DB_PATH lets the E2E run (and anyone) point the app at another file.
+DB_PATH = Path(os.environ.get("COFFEE_LOG_DB_PATH", Path(__file__).resolve().parent.parent / "coffee_log_web.db"))
 
 def get_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
@@ -43,53 +45,6 @@ def init_db() -> None:
                 is_active INTEGER NOT NULL DEFAULT 1,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS brew_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                brewed_at TIMESTAMP NOT NULL,
-                equipment_set_id INTEGER NOT NULL,
-                bean_label TEXT NOT NULL,
-                dose_g REAL NOT NULL,
-                water_g REAL NOT NULL,
-                water_temp_c REAL NOT NULL,
-                grind_setting_value REAL,
-                bloom_time_s INTEGER NOT NULL,
-                agitation_level INTEGER NOT NULL CHECK(agitation_level BETWEEN 0 AND 3),
-                pours TEXT NOT NULL,
-                finish_pouring_s INTEGER NOT NULL,
-                brew_end_s INTEGER NOT NULL,
-                equipment_set_name_snapshot TEXT NOT NULL,
-                brewer_label_snapshot TEXT NOT NULL,
-                filter_label_snapshot TEXT NOT NULL,
-                grinder_label_snapshot TEXT NOT NULL,
-                grind_setting_unit_snapshot TEXT NOT NULL,
-                note TEXT,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (equipment_set_id) REFERENCES equipment_sets(id)
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS evaluations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                brew_log_id INTEGER NOT NULL UNIQUE,
-                confidence INTEGER NOT NULL CHECK(confidence BETWEEN 1 AND 3),
-                overall_score INTEGER CHECK(overall_score BETWEEN 1 AND 10),
-                taste_defect TEXT NOT NULL CHECK(taste_defect IN ('none', 'thin', 'sour', 'bitter', 'not_sweet')),
-                aroma_defect INTEGER NOT NULL CHECK(aroma_defect IN (0, 1)),
-                aftertaste_defect INTEGER NOT NULL CHECK(aftertaste_defect IN (0, 1)),
-                texture_defect INTEGER NOT NULL CHECK(texture_defect IN (0, 1)),
-                memo TEXT,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (brew_log_id) REFERENCES brew_logs(id) ON DELETE CASCADE,
-                CHECK (confidence = 1 OR overall_score IS NOT NULL)
             )
             """
         )

@@ -164,3 +164,25 @@ def test_comparison_page_can_include_deviated_trials(client, experiment):
 def test_missing_pages_return_404(client):
     assert client.get("/pages/experiments/999").status_code == 404
     assert client.get("/pages/trials/999").status_code == 404
+
+
+def test_equipment_set_pages(client, tmp_path):
+    created = client.post(
+        "/equipment-sets",
+        json={"name": "Home V60", "filter_label": "Paper", "brewer_label": "V60",
+              "grinder_label": "Grinder", "grind_setting_unit": "click", "note": None},
+    ).json()
+
+    listing = get_page(client, "/pages/equipment-sets")
+    new_form = get_page(client, "/pages/equipment-sets/new")
+    edit_form = get_page(client, f"/pages/equipment-sets/{created['id']}/edit")
+
+    assert "Home V60" in listing
+    assert 'value="Home V60"' in edit_form
+    for html in (listing, new_form, edit_form):
+        assert_scripts_parse(html, tmp_path)
+
+
+def test_legacy_pages_are_gone(client):
+    assert client.get("/pages/logs").status_code == 404
+    assert client.get("/logs").status_code == 404
