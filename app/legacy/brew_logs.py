@@ -1,164 +1,32 @@
+"""Legacy BrewLog / Evaluation API and pages. Removed in the last migration step (PR9)."""
 import json
+from contextlib import closing
+
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import ValidationError
-from contextlib import asynccontextmanager, closing
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.templating import Jinja2Templates
-from database import get_connection, init_db
-from models import (
+
+from app.db import get_connection
+from app.legacy.schemas import (
     BrewLogCreate,
     BrewLogCreateRequest,
+    BrewLogCreateResponse,
     BrewLogRead,
     BrewLogUpdateRequest,
-    BrewLogCreateResponse,
-    EquipmentSetCreate,
-    EquipmentSetRead,
-    EquipmentSetUpdate,
     EvaluationRead,
     EvaluationUpdateRequest,
 )
+from app.services import equipment_sets as equipment_set_service
+from app.templating import templates
 
-from fastapi.staticfiles import StaticFiles
+router = APIRouter(tags=["legacy-brew-logs"])
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    init_db()
-    yield
-
-
-app = FastAPI(title="Coffee Log Web", lifespan=lifespan)
-
-templates = Jinja2Templates(directory="templates")
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 def row_to_brew_log_read(row) -> BrewLogRead:
     brew_log_data = dict(row)
     brew_log_data["pours"] = json.loads(brew_log_data["pours"])
     return BrewLogRead(**brew_log_data)
 
-@app.post("/equipment-sets")
-def create_equipment_set(equipment_set: EquipmentSetCreate) -> EquipmentSetRead:
-    with closing(get_connection()) as conn:
-        with conn:
-            cursor = conn.execute(
-                    """
-                    INSERT INTO equipment_sets (
-                        name, 
-                        filter_label, 
-                        brewer_label, 
-                        grinder_label, 
-                        grind_setting_unit,
-                        note
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        equipment_set.name,
-                        equipment_set.filter_label,
-                        equipment_set.brewer_label,
-                        equipment_set.grinder_label,
-                        equipment_set.grind_setting_unit,
-                        equipment_set.note
-                    ),
-                )
-            equipment_set_id = cursor.lastrowid
-
-        row = conn.execute(
-            "SELECT * FROM equipment_sets WHERE id = ?", 
-            (equipment_set_id,)
-            ).fetchone()
-        return EquipmentSetRead(**dict(row))
-
-@app.get("/equipment-sets")
-def read_equipment_sets() -> list[EquipmentSetRead]:
-    with closing(get_connection()) as conn:
-        rows = conn.execute("SELECT * FROM equipment_sets WHERE is_active = 1").fetchall()
-        return [EquipmentSetRead(**dict(row)) for row in rows]
-
-@app.get("/equipment-sets/{equipment_set_id}")
-def read_equipment_set(equipment_set_id: int) -> EquipmentSetRead:
-    with closing(get_connection()) as conn:
-        row = conn.execute(
-            "SELECT * FROM equipment_sets WHERE id = ? AND is_active = 1", 
-            (equipment_set_id,)
-            ).fetchone()
-        if row is None:
-            raise HTTPException(status_code=404, detail="Equipment set not found")
-        return EquipmentSetRead(**dict(row))
-
-@app.patch("/equipment-sets/{equipment_set_id}")
-def update_equipment_set(equipment_set_id: int, equipment_set: EquipmentSetUpdate) -> EquipmentSetRead:
-    updates = equipment_set.model_dump(exclude_unset=True)
-    if not updates:
-        raise HTTPException(status_code=400, detail="No fields to update")
-    
-    with closing(get_connection()) as conn:
-        row = conn.execute(
-            "SELECT * FROM equipment_sets WHERE id = ? AND is_active = 1",
-            (equipment_set_id,)
-        ).fetchone()
-        if row is None:
-            raise HTTPException(status_code=404, detail="Equipment set not found")
-        
-        with conn:
-            parts = []
-            for field in updates:
-                parts.append(f"{field} = ?")
-
-            set_clause = ", ".join(parts)
-
-            values = list(updates.values())
-            values.append(equipment_set_id)
-
-            sql = f"""
-                UPDATE equipment_sets
-                SET {set_clause},
-                updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """
-
-            conn.execute(sql, values)
-
-        row = conn.execute(
-            "SELECT * FROM equipment_sets WHERE id = ? AND is_active = 1",
-            (equipment_set_id,)
-        ).fetchone()
-
-        return EquipmentSetRead(**dict(row))
-
-@app.delete("/equipment-sets/{equipment_set_id}")
-def delete_equipment_set(equipment_set_id: int) -> EquipmentSetRead:
-    with closing(get_connection()) as conn:
-        row = conn.execute(
-            "SELECT * FROM equipment_sets WHERE id = ? AND is_active = 1",
-            (equipment_set_id,)
-        ).fetchone()
-
-        if row is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Equipment set not found"
-            )
-
-        with conn:
-            conn.execute(
-                """
-                UPDATE equipment_sets
-                SET is_active = 0,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-                """,
-                (equipment_set_id,)
-            )
-
-        row = conn.execute(
-            "SELECT * FROM equipment_sets WHERE id = ?",
-            (equipment_set_id,)
-        ).fetchone()
-
-        return EquipmentSetRead(**dict(row))
-
-@app.post("/logs")
+@router.post("/logs")
 def create_brew_log(request: BrewLogCreateRequest) -> BrewLogCreateResponse:
     brew_log = request.brew_log
     evaluation = request.evaluation
@@ -268,7 +136,7 @@ def create_brew_log(request: BrewLogCreateRequest) -> BrewLogCreateResponse:
                 evaluation=EvaluationRead(**dict(evaluation_row))
             )
 
-@app.get("/logs")
+@router.get("/logs")
 def read_brew_logs() -> list[BrewLogRead]:
     with closing(get_connection()) as conn:
         brew_log_rows = conn.execute(
@@ -276,7 +144,7 @@ def read_brew_logs() -> list[BrewLogRead]:
         ).fetchall()
         return [row_to_brew_log_read(row) for row in brew_log_rows]
 
-@app.get("/logs/{brew_log_id}")
+@router.get("/logs/{brew_log_id}")
 def read_brew_log(brew_log_id: int) -> BrewLogRead:
     with closing(get_connection()) as conn:
         brew_log_row = conn.execute("SELECT * FROM brew_logs WHERE id = ?", (brew_log_id,)).fetchone()
@@ -285,7 +153,7 @@ def read_brew_log(brew_log_id: int) -> BrewLogRead:
 
         return row_to_brew_log_read(brew_log_row)
 
-@app.get("/logs/{brew_log_id}/evaluation")
+@router.get("/logs/{brew_log_id}/evaluation")
 def read_evaluation(brew_log_id: int) -> EvaluationRead:
     with closing(get_connection()) as conn:
         evaluation_row = conn.execute(
@@ -301,7 +169,7 @@ def read_evaluation(brew_log_id: int) -> EvaluationRead:
 
         return EvaluationRead(**dict(evaluation_row))
 
-@app.patch("/logs/{brew_log_id}/evaluation")
+@router.patch("/logs/{brew_log_id}/evaluation")
 def update_evaluation(
     brew_log_id: int,
     request: EvaluationUpdateRequest,
@@ -373,7 +241,7 @@ def update_evaluation(
 
         return EvaluationRead(**dict(updated_row))
 
-@app.patch("/logs/{brew_log_id}")
+@router.patch("/logs/{brew_log_id}")
 def update_brew_log(
     brew_log_id: int,
     request: BrewLogUpdateRequest,
@@ -474,7 +342,7 @@ def update_brew_log(
 
         return row_to_brew_log_read(updated_row)
 
-@app.delete("/logs/{brew_log_id}")
+@router.delete("/logs/{brew_log_id}")
 def delete_brew_log(brew_log_id: int) -> BrewLogRead:
     with closing(get_connection()) as conn:
         brew_log_row = conn.execute("SELECT * FROM brew_logs WHERE id = ?", (brew_log_id,)).fetchone()
@@ -489,45 +357,7 @@ def delete_brew_log(brew_log_id: int) -> BrewLogRead:
 
         return deleted_brew_log
 
-@app.get("/")
-def home_page(request: Request):
-    return templates.TemplateResponse(
-        request=request,
-        name="home.html",
-        context={},
-    )
-
-
-@app.get("/pages/equipment-sets")
-def equipment_sets_page(request: Request):
-    equipment_sets = read_equipment_sets()
-    return templates.TemplateResponse(
-        request=request,
-        name="equipment_sets.html",
-        context={"equipment_sets": equipment_sets},
-    )
-
-
-@app.get("/pages/equipment-sets/new")
-def new_equipment_set_page(request: Request):
-    return templates.TemplateResponse(
-        request=request,
-        name="equipment_set_form.html",
-        context={"equipment_set": None},
-    )
-
-
-@app.get("/pages/equipment-sets/{equipment_set_id}/edit")
-def edit_equipment_set_page(request: Request, equipment_set_id: int):
-    equipment_set = read_equipment_set(equipment_set_id)
-    return templates.TemplateResponse(
-        request=request,
-        name="equipment_set_form.html",
-        context={"equipment_set": equipment_set},
-    )
-
-
-@app.get("/pages/logs")
+@router.get("/pages/logs")
 def brew_logs_page(request: Request):
     brew_logs = read_brew_logs()
     return templates.TemplateResponse(
@@ -537,9 +367,9 @@ def brew_logs_page(request: Request):
     )
 
 
-@app.get("/pages/logs/new")
+@router.get("/pages/logs/new")
 def new_brew_log_page(request: Request):
-    equipment_sets = read_equipment_sets()
+    equipment_sets = equipment_set_service.list_active()
     return templates.TemplateResponse(
         request=request,
         name="brew_log_form.html",
@@ -547,7 +377,7 @@ def new_brew_log_page(request: Request):
     )
 
 
-@app.get("/pages/logs/{brew_log_id}")
+@router.get("/pages/logs/{brew_log_id}")
 def brew_log_detail_page(request: Request, brew_log_id: int):
     brew_log = read_brew_log(brew_log_id)
     evaluation = read_evaluation(brew_log_id)

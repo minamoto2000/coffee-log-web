@@ -1,8 +1,8 @@
-import database
+from app import db as database
 import pytest
 from fastapi.testclient import TestClient
 
-from main import app
+from app.main import app
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def brew_log_id(client):
             "note": None,
         },
     )
-    assert equipment_response.status_code == 200
+    assert equipment_response.status_code == 201
     equipment_set_id = equipment_response.json()["id"]
 
     log_response = client.post(

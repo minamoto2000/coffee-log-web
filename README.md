@@ -129,6 +129,8 @@ PATCH  /equipment-sets/{equipment_set_id}
 DELETE /equipment-sets/{equipment_set_id}
 ```
 
+`POST` は201 Createdを返します。`DELETE` は物理削除ではなくsoft deleteです。
+
 ### BrewLog
 
 ```text
@@ -229,7 +231,7 @@ Python 3.12を想定しています。
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn app.main:app --reload
 ```
 
 Windows PowerShellの場合:
@@ -238,7 +240,7 @@ Windows PowerShellの場合:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn app.main:app --reload
 ```
 
 起動時にSQLite schemaを自動初期化します。
@@ -270,6 +272,7 @@ python -m pytest -q
 - BrewLog削除時のEvaluation cascade
 - BrewLog list ordering
 - EquipmentSet required-string trim
+- EquipmentSet PATCH / soft delete（空PATCHは400、非表示後は404）
 - UTC normalization
 - 主要Jinja画面の表示
 
@@ -289,23 +292,33 @@ python -m pytest -q
 
 ```text
 .
-├── main.py
-├── models.py
-├── database.py
-├── requirements.txt
-├── requirements-dev.txt
+├── app/
+│   ├── main.py            # FastAPIアプリの組み立て（router登録、例外ハンドラ、static）
+│   ├── db.py              # SQLite接続（foreign_keys = ON）とschema初期化
+│   ├── errors.py          # service層の業務エラーと、HTTP status への対応付け
+│   ├── templating.py      # Jinja2の設定
+│   ├── schemas/           # request / response schemaとvalidation
+│   ├── repositories/      # SQL（connectionを受け取り、transactionは持たない）
+│   ├── services/          # 業務規則とtransaction境界
+│   ├── routers/           # HTTP API と画面のroute
+│   └── legacy/            # 旧BrewLog / Evaluation（移行の最終段階で撤去）
 ├── templates/
 ├── static/
 ├── tests/
+├── pytest.ini
+├── requirements.txt
+├── requirements-dev.txt
 └── .github/workflows/tests.yml
 ```
 
-責務:
+層の責務:
 
-- `main.py`: FastAPI routes / Jinja pages / DB操作のapplication layer
-- `models.py`: request / response schemaとdomain validation
-- `database.py`: SQLite connection / schema
-- `tests/`: API、domain、integrity、submission acceptance tests
+- router：HTTPの入出力だけを扱い、serviceを呼ぶ
+- service：存在確認・更新可否などの業務規則と、transactionの範囲を決める。HTTPに依存せず、`NotFoundError` などの業務エラーを送出する
+- repository：SQLだけを持つ。PATCHで更新できる列は許可リストで限定する
+- `errors.py`：業務エラーを404・400などへ変換する。応答形式は `{"detail": "..."}`
+
+`app/legacy/` の旧BrewLog / Evaluationは移行前の構造のまま残しており、新しい層の規約には従っていません。
 
 ## Out of Scope
 
