@@ -10,7 +10,7 @@ class AppError(Exception):
 
     status_code = 500
 
-    def __init__(self, detail: str):
+    def __init__(self, detail):
         super().__init__(detail)
         self.detail = detail
 
@@ -28,6 +28,12 @@ class ConflictError(AppError):
     already has trials)."""
 
     status_code = 409
+
+
+class InvalidResourceError(AppError):
+    """The resource would be invalid after the change (PATCH merge validation)."""
+
+    status_code = 422
 
 
 def register_exception_handlers(app: FastAPI) -> None:

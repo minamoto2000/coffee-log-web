@@ -5,9 +5,8 @@ from datetime import datetime
 
 from app.db import get_connection, transaction
 from app.domain import experiment as experiment_domain
-from app.domain.extraction import ey_beverage_mass
 from app.domain.protocol import ConditionPlan, Step, condition_diff, planned_total_water_g
-from app.domain.stats import summarize
+from app.domain.trial import trial_measures
 from app.errors import ConflictError, EmptyUpdateError, NotFoundError
 from app.repositories import equipment_sets as equipment_repository
 from app.repositories import experiments as repository
@@ -235,8 +234,7 @@ def _trial_ref(trial: sqlite3.Row) -> experiment_domain.TrialRef:
 
 
 def _trial_summary(trial: sqlite3.Row, readings: list[float], overall_score: int | None) -> TrialSummary:
-    tds_mean = summarize(readings).mean
-    ey = ey_beverage_mass(tds_mean, trial["beverage_mass_g"], trial["dose_g_actual"])
+    measures = trial_measures(readings, trial["beverage_mass_g"], trial["dose_g_actual"])
     return TrialSummary(
         id=trial["id"],
         condition_label=trial["condition_label"],
@@ -244,8 +242,8 @@ def _trial_summary(trial: sqlite3.Row, readings: list[float], overall_score: int
         brewed_at=trial["brewed_at"],
         followed_plan=bool(trial["followed_plan"]),
         excluded=bool(trial["excluded"]),
-        tds_mean_pct=tds_mean,
-        ey_pct=ey.value,
+        tds_mean_pct=measures.tds.mean,
+        ey_pct=measures.ey.value,
         overall_score=overall_score,
     )
 
