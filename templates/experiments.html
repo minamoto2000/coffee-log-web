@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}実験一覧{% endblock %}
+{% block content %}
+<h1>実験一覧</h1>
+<p><a href="/pages/experiments/new">実験を作成</a></p>
+<table>
+    <thead>
+        <tr><th>ID</th><th>タイトル</th><th>豆</th><th>状態</th><th>試行数（A / B）</th><th>作成日時</th></tr>
+    </thead>
+    <tbody>
+    {% for item in experiments %}
+        <tr>
+            <td>{{ item.id }}</td>
+            <td><a href="/pages/experiments/{{ item.id }}">{{ item.title }}</a></td>
+            <td>{{ item.bean_label }}</td>
+            <td>{{ status_labels[item.status] }}</td>
+            <td>{{ item.trial_counts["A"] }} / {{ item.trial_counts["B"] }}</td>
+            <td>{{ item.created_at | local_datetime }}</td>
+        </tr>
+    {% else %}
+        <tr><td colspan="6">実験はまだありません。</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

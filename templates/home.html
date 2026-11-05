@@ -1,24 +1,15 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>Coffee Log Web</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <h1>Coffee Log Web</h1>
-    <p>コーヒー抽出の実験・測定・検証アプリへ移行中です。現在は抽出条件と評価の記録機能のみ動作します。</p>
-    <nav>
-        <a href="/pages/equipment-sets">Equipment Sets</a>
-        <a href="/pages/logs">Brew Logs</a>
-        <a href="/docs">API Docs</a>
-    </nav>
-    <div class="card">
-        <h2>現在使える機能</h2>
-        <ol>
-            <li>Equipment Setを登録する</li>
-            <li>Brew LogとEvaluationを同時に登録する</li>
-        </ol>
-    </div>
-</body>
-</html>
+{% extends "base.html" %}
+{% block content %}
+<h1>Coffee Log Web</h1>
+<p>コーヒー抽出の条件と測定結果の関係を、自分の器具で検証するためのアプリです。</p>
+<div class="card">
+    <h2>使い方</h2>
+    <ol>
+        <li><a href="/pages/equipment-sets">器具セット</a>を登録する</li>
+        <li><a href="/pages/experiments/new">実験を作成</a>し、比べる2条件の抽出工程を決める</li>
+        <li>案内に従って2条件を交互に淹れ、TDS・飲料重量・官能評価を記録する</li>
+        <li>比較画面で、条件ごとの値・ばらつき・注意を確認する</li>
+    </ol>
+</div>
+<p class="muted">移行前のBrew Log画面は <a href="/pages/logs">/pages/logs</a> に残っています（移行の最終段階で撤去）。</p>
+{% endblock %}

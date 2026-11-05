@@ -12,7 +12,7 @@
 2. 科学的根拠が不十分な改善提案を中心機能にしない
 3. 条件を変えたときの影響を、TDSなどの測定で自分で確かめられるようにする
 
-新しいCore Vertical Sliceは次のとおりです。APIでは一通り動作し、画面は未実装です。
+新しいCore Vertical Sliceは次のとおりです。画面とAPIの両方で一通り動作します。
 
 ```text
 実験作成（2条件＋抽出工程）
@@ -22,8 +22,7 @@
 
 移行はPR単位で進め、各PRはテストが通る状態で閉じます。
 
-- 完了：ルールベースRecommendationとExternalBenchmarkの削除、`app/` パッケージへの分割、domainの純粋関数、新テーブル、実験・試行・比較のAPI
-- 次：実験・試行・比較の画面
+- 完了：ルールベースRecommendationとExternalBenchmarkの削除、`app/` パッケージへの分割、domainの純粋関数、新テーブル、実験・試行・比較のAPIと画面
 - 最後：旧ドメイン（BrewLog / Evaluation）の撤去とREADMEの全面改稿
 
 移行前の版（記録＋ルールベース改善提案）はタグ `legacy-v1-recommendation` で参照できます。
@@ -41,7 +40,16 @@ GET    /trials/{id}                         実測値と派生値（TDS平均・
 GET    /experiments/{id}/comparison         条件比較（記述統計・2種のばらつき・注意）
 ```
 
-旧ドメインの画面（PR9で撤去）:
+新しい画面:
+
+- `/pages/experiments` — 実験一覧
+- `/pages/experiments/new` — 実験作成（条件Aの工程を入力し、Bへ複製して1か所だけ変える。差分を即時表示）
+- `/pages/experiments/{id}` — 実験詳細（A・Bの工程と差分の強調、試行一覧、次に淹れる条件）
+- `/pages/experiments/{id}/trials/new` — 試行の記録（次の条件を初期選択、TDSの複数回測定、官能評価）
+- `/pages/trials/{id}` — 試行の詳細と編集（派生値、除外・逸脱、TDS測定の追加・削除、官能評価）
+- `/pages/experiments/{id}/comparison` — 条件比較
+
+旧ドメインの画面（移行の最終段階で撤去）:
 
 - `/` — Home
 - `/pages/equipment-sets` — Equipment Set一覧

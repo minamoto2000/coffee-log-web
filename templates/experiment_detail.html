@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}{{ experiment.title }}{% endblock %}
+{% block content %}
+{% set diff_paths = experiment.condition_diff.items | map(attribute="path") | list %}
+<h1>{{ experiment.title }}</h1>
+<p>状態：{{ status_labels[experiment.status] }}</p>
+
+<div class="card">
+    <h2>次に淹れる条件：{{ experiment.next_condition_label }}</h2>
+    <p class="actions">
+        <a href="/pages/experiments/{{ experiment.id }}/trials/new">試行を記録する</a>
+        <a href="/pages/experiments/{{ experiment.id }}/comparison">条件を比較する</a>
+    </p>
+    <p class="muted">試行の少ない条件を案内します（同数なら直前と逆の条件）。強制ではありません。</p>
+</div>
+
+<div class="card">
+    <h2>仮説</h2>
+    <p>{{ experiment.hypothesis }}</p>
+    <dl>
+        <dt>変更する変数</dt><dd>{{ experiment.changed_variable }}</dd>
+        <dt>予定反復数</dt><dd>条件ごとに {{ experiment.planned_trials_per_condition }} 杯</dd>
+    </dl>
+</div>
+
+<div class="card">
+    <h2>固定条件</h2>
+    <dl>
+        <dt>豆</dt><dd>{{ experiment.bean_label }}</dd>
+        <dt>焙煎日</dt><dd>{{ experiment.roast_date or "—" }}</dd>
+        <dt>器具</dt><dd>{{ experiment.equipment_set_name_snapshot }}（ドリッパー {{ experiment.brewer_label_snapshot }} / フィルター {{ experiment.filter_label_snapshot }} / ミル {{ experiment.grinder_label_snapshot }}、挽き目の単位 {{ experiment.grind_setting_unit_snapshot }}）</dd>
+        <dt>抽出方式</dt><dd>{{ extraction_style_labels[experiment.extraction_style] }}</dd>
+        <dt>EYの計算方式</dt><dd>{{ experiment.ey_method }}</dd>
+        <dt>水</dt><dd>{{ experiment.water_label or "—" }}</dd>
+        <dt>TDS計測器</dt><dd>{{ experiment.tds_device_label or "—" }}</dd>
+        <dt>その他</dt><dd>{{ experiment.fixed_conditions_note or "—" }}</dd>
+    </dl>
+</div>
+
+<div class="card">
+    <h2>A と B の差分（{{ experiment.condition_diff.count }} 項目）</h2>
+    {% if experiment.condition_diff.count == 0 %}
+    <p class="error">2条件の計画に差分がありません。</p>
+    {% else %}
+    <ul>
+        {% for item in experiment.condition_diff.items %}
+        <li>{{ item.path }}: {{ item.a if item.a is not none else "—" }} → {{ item.b if item.b is not none else "—" }}</li>
+        {% endfor %}
+    </ul>
+    {% if experiment.condition_diff.count >= 2 %}
+    <p class="error">差分が2項目以上あります。差がどの変更によるものかは分けられません。</p>
+    {% endif %}
+    {% endif %}
+</div>
+
+<div class="two-columns">
+    {% for condition in experiment.conditions %}
+    <div class="card">
+        <h2>条件{{ condition.label }}：{{ condition.name }}</h2>
+        <dl>
+            <dt>粉量</dt><dd class="{{ 'diff' if 'dose_g' in diff_paths }}">{{ condition.dose_g }} g</dd>
+            <dt>挽き目</dt><dd class="{{ 'diff' if 'grind_setting_value' in diff_paths }}">{{ condition.grind_setting_value if condition.grind_setting_value is not none else "—" }}</dd>
+            <dt>計画総湯量</dt><dd>{{ condition.planned_total_water_g }} g</dd>
+            {% if condition.note %}<dt>メモ</dt><dd>{{ condition.note }}</dd>{% endif %}
+        </dl>
+        <table>
+            <thead><tr><th>#</th><th>種類</th><th>開始</th><th>内容</th></tr></thead>
+            <tbody>
+            {% for step in condition.steps %}
+                {% set prefix = "steps[" ~ step.seq ~ "]." %}
+                <tr>
+                    <td>{{ step.seq }}</td>
+                    <td class="{{ 'diff' if prefix ~ 'step_type' in diff_paths }}">{{ step_type_labels[step.step_type] }}</td>
+                    <td class="{{ 'diff' if prefix ~ 'start_s' in diff_paths or prefix ~ 'duration_s' in diff_paths }}">{{ step.start_s }} 秒{% if step.duration_s is not none %}（{{ step.duration_s }} 秒間）{% endif %}</td>
+                    <td class="{{ 'diff' if prefix ~ 'water_g' in diff_paths or prefix ~ 'kettle_temp_c' in diff_paths or prefix ~ 'agitation_method' in diff_paths or prefix ~ 'label' in diff_paths }}">
+                        {% if step.step_type == "pour" %}{{ step.water_g }} g・{{ step.kettle_temp_c }} ℃
+                        {% elif step.step_type == "agitate" %}{{ agitation_method_labels[step.agitation_method] }}
+                        {% else %}{{ step.label }}{% endif %}
+                        {% if step.note %}<span class="muted">（{{ step.note }}）</span>{% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="card">
+    <h2>試行</h2>
+    <table>
+        <thead>
+            <tr><th>条件</th><th>#</th><th>抽出日時</th><th>TDS (%)</th><th>EY (%)</th><th>総合点</th><th>計画どおり</th><th>比較</th></tr>
+        </thead>
+        <tbody>
+        {% for trial in experiment.trials %}
+            <tr>
+                <td>{{ trial.condition_label }}</td>
+                <td><a href="/pages/trials/{{ trial.id }}">{{ trial.trial_no }}</a></td>
+                <td>{{ trial.brewed_at | local_datetime }}</td>
+                <td>{{ trial.tds_mean_pct | number(2) }}</td>
+                <td>{{ trial.ey_pct | number(1) }}</td>
+                <td>{{ trial.overall_score if trial.overall_score is not none else "—" }}</td>
+                <td>{{ "はい" if trial.followed_plan else "逸脱" }}</td>
+                <td>{{ "除外" if trial.excluded else ("既定では除外" if not trial.followed_plan else "対象") }}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="8">試行はまだありません。</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if not experiment.trials %}
+<div class="card">
+    <h2>実験の削除</h2>
+    <p class="muted">試行がない間だけ削除できます。</p>
+    <button type="button" id="delete-experiment">この実験を削除</button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block script %}
+<script>
+const deleteButton = document.getElementById("delete-experiment");
+if (deleteButton) {
+    deleteButton.addEventListener("click", async () => {
+        if (!confirm("この実験を削除しますか？")) return;
+        const result = await sendJson("DELETE", "/experiments/{{ experiment.id }}");
+        if (result) window.location.href = "/pages/experiments";
+    });
+}
+</script>
+{% endblock %}

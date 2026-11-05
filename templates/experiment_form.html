@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}実験を作成{% endblock %}
+{% block content %}
+<h1>実験を作成</h1>
+{% if not equipment_sets %}
+<p class="error">有効な器具セットがありません。先に<a href="/pages/equipment-sets/new">器具セットを登録</a>してください。</p>
+{% endif %}
+<form id="experiment-form">
+    <fieldset>
+        <legend>実験</legend>
+        <label>タイトル <input name="title" required></label>
+        <label>仮説 <textarea name="hypothesis" required placeholder="例：蒸らしを50℃にするとTDSとEYが下がる"></textarea></label>
+        <label>変更する変数 <input name="changed_variable" required placeholder="例：1投目のケトル温度"></label>
+        <label>予定反復数（条件ごと） <input name="planned_trials_per_condition" type="number" min="1" max="20" value="3" required></label>
+    </fieldset>
+    <fieldset>
+        <legend>固定条件（試行を記録した後は変更できない）</legend>
+        <label>豆 <input name="bean_label" required></label>
+        <label>焙煎日 <input name="roast_date" type="date"></label>
+        <label>器具セット
+            <select name="equipment_set_id" required>
+                {% for item in equipment_sets %}
+                <option value="{{ item.id }}">{{ item.name }}（{{ item.brewer_label }} / {{ item.grinder_label }}）</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>抽出方式
+            <select name="extraction_style" required>
+                {% for value, label in extraction_style_labels.items() %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>水 <input name="water_label" placeholder="任意"></label>
+        <label>TDS計測器 <input name="tds_device_label" placeholder="任意"></label>
+        <label>その他の固定条件（予熱・測定手順など） <textarea name="fixed_conditions_note"></textarea></label>
+    </fieldset>
+
+    {% for label in ["A", "B"] %}
+    <fieldset id="condition-{{ label }}">
+        <legend>条件{{ label }}</legend>
+        <label>名前 <input data-field="name" required placeholder="例：{{ '50℃蒸らし' if label == 'A' else '93℃蒸らし' }}"></label>
+        <div class="inline">
+            <label>粉量 (g) <input data-field="dose_g" type="number" step="0.01" min="0" required></label>
+            <label>挽き目 <input data-field="grind_setting_value" type="number" step="0.01" min="0"></label>
+        </div>
+        <label>メモ <input data-field="note"></label>
+        <table class="steps-table">
+            <thead>
+                <tr><th>種類</th><th>開始 (秒)</th><th>継続 (秒)</th><th>湯量 (g)</th><th>ケトル温度 (℃)</th><th>攪拌方法</th><th>操作名</th><th>メモ</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <div class="actions">
+            <button type="button" data-action="add-step">工程を追加</button>
+            {% if label == "A" %}<button type="button" id="copy-a-to-b">Aの計画をBへ複製</button>{% endif %}
+        </div>
+    </fieldset>
+    {% endfor %}
+    <p class="muted">待機は工程にしません。次の工程の開始時刻までの空白が待機です。最初の注湯は0秒に置きます。</p>
+
+    <div class="card">
+        <h2>A と B の差分</h2>
+        <ul id="diff"></ul>
+        <p class="muted">保存前の確認用の表示です。保存後の差分はサーバーで算出します。</p>
+    </div>
+    <button type="submit">保存</button>
+</form>
+{% endblock %}
+
+{% block script %}
+<script>
+const STEP_TYPES = {{ step_type_labels | tojson }};
+const AGITATION_METHODS = {{ agitation_method_labels | tojson }};
+const TYPE_FIELDS = {pour: ["water_g", "kettle_temp_c"], agitate: ["agitation_method"], other: ["label"]};
+const TYPE_SPECIFIC = ["water_g", "kettle_temp_c", "agitation_method", "label"];
+const COMPARED_STEP_FIELDS = ["step_type", "start_s", "duration_s", ...TYPE_SPECIFIC];
+
+function cell(content) {
+    const td = document.createElement("td");
+    td.appendChild(content);
+    return td;
+}
+
+function input(field, type, attrs = {}) {
+    const element = document.createElement("input");
+    element.dataset.field = field;
+    element.type = type;
+    Object.entries(attrs).forEach(([key, value]) => element.setAttribute(key, value));
+    return element;
+}
+
+function select(field, options) {
+    const element = document.createElement("select");
+    element.dataset.field = field;
+    Object.entries(options).forEach(([value, label]) => element.add(new Option(label, value)));
+    return element;
+}
+
+function stepRow(step = {}) {
+    const tr = document.createElement("tr");
+    const fields = [
+        select("step_type", STEP_TYPES),
+        input("start_s", "number", {min: 0, step: 1, required: ""}),
+        input("duration_s", "number", {min: 0, step: 1}),
+        input("water_g", "number", {min: 0, step: 0.01}),
+        input("kettle_temp_c", "number", {min: 0, max: 100, step: 0.1}),
+        select("agitation_method", AGITATION_METHODS),
+        input("label", "text"),
+        input("note", "text"),
+    ];
+    fields.forEach((element) => {
+        const value = step[element.dataset.field];
+        if (value !== undefined && value !== null) element.value = value;
+        tr.appendChild(cell(element));
+    });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "削除";
+    remove.addEventListener("click", () => { tr.remove(); renderDiff(); });
+    tr.appendChild(cell(remove));
+    tr.querySelector('[data-field="step_type"]').addEventListener("change", () => refreshRow(tr));
+    refreshRow(tr);
+    return tr;
+}
+
+// Fields that do not apply to the step type are disabled and sent as null.
+function refreshRow(tr) {
+    const type = tr.querySelector('[data-field="step_type"]').value;
+    TYPE_SPECIFIC.forEach((field) => {
+        const element = tr.querySelector(`[data-field="${field}"]`);
+        element.disabled = !TYPE_FIELDS[type].includes(field);
+    });
+}
+
+function readSteps(label) {
+    return [...document.querySelectorAll(`#condition-${label} tbody tr`)].map((tr) => {
+        const value = (field) => {
+            const element = tr.querySelector(`[data-field="${field}"]`);
+            return element.disabled ? null : element.value;
+        };
+        return {
+            step_type: value("step_type"),
+            start_s: numberOrNull(value("start_s")),
+            duration_s: numberOrNull(value("duration_s")),
+            water_g: numberOrNull(value("water_g")),
+            kettle_temp_c: numberOrNull(value("kettle_temp_c")),
+            agitation_method: value("agitation_method"),
+            label: textOrNull(value("label")),
+            note: textOrNull(value("note")),
+        };
+    });
+}
+
+function readCondition(label) {
+    const field = (name) => document.querySelector(`#condition-${label} [data-field="${name}"]`).value;
+    return {
+        label,
+        name: field("name").trim(),
+        dose_g: numberOrNull(field("dose_g")),
+        grind_setting_value: numberOrNull(field("grind_setting_value")),
+        note: textOrNull(field("note")),
+        steps: readSteps(label),
+    };
+}
+
+function setSteps(label, steps) {
+    const body = document.querySelector(`#condition-${label} tbody`);
+    body.replaceChildren(...steps.map((step) => stepRow(step)));
+}
+
+// Mirrors app.domain.protocol.condition_diff (notes are not compared).
+function conditionDiff(a, b) {
+    const items = [];
+    if (a.dose_g !== b.dose_g) items.push(["dose_g", a.dose_g, b.dose_g]);
+    if (a.grind_setting_value !== b.grind_setting_value) items.push(["grind_setting_value", a.grind_setting_value, b.grind_setting_value]);
+    if (a.steps.length !== b.steps.length) items.push(["steps.count", a.steps.length, b.steps.length]);
+    for (let i = 0; i < Math.min(a.steps.length, b.steps.length); i++) {
+        COMPARED_STEP_FIELDS.forEach((field) => {
+            if (a.steps[i][field] !== b.steps[i][field]) items.push([`steps[${i + 1}].${field}`, a.steps[i][field], b.steps[i][field]]);
+        });
+    }
+    return items;
+}
+
+function renderDiff() {
+    const items = conditionDiff(readCondition("A"), readCondition("B"));
+    const list = document.getElementById("diff");
+    list.replaceChildren();
+    if (items.length === 0) {
+        list.append(Object.assign(document.createElement("li"), {textContent: "差分はありません。"}));
+        return;
+    }
+    items.forEach(([path, a, b]) => {
+        list.append(Object.assign(document.createElement("li"), {textContent: `${path}: ${a ?? "—"} → ${b ?? "—"}`}));
+    });
+    if (items.length >= 2) {
+        list.append(Object.assign(document.createElement("li"), {textContent: "差分が2項目以上あります。1変数だけを変える実験にする場合は見直してください。", className: "error"}));
+    }
+}
+
+document.querySelectorAll('[data-action="add-step"]').forEach((button) => {
+    button.addEventListener("click", () => {
+        const body = button.closest("fieldset").querySelector("tbody");
+        const last = body.lastElementChild;
+        const nextStart = last ? numberOrNull(last.querySelector('[data-field="start_s"]').value) ?? 0 : 0;
+        body.appendChild(stepRow({step_type: "pour", start_s: nextStart}));
+        renderDiff();
+    });
+});
+
+document.getElementById("copy-a-to-b").addEventListener("click", () => {
+    const a = readCondition("A");
+    const bField = (name) => document.querySelector(`#condition-B [data-field="${name}"]`);
+    bField("dose_g").value = a.dose_g ?? "";
+    bField("grind_setting_value").value = a.grind_setting_value ?? "";
+    setSteps("B", a.steps);
+    renderDiff();
+});
+
+const form = document.getElementById("experiment-form");
+form.addEventListener("input", renderDiff);
+form.addEventListener("change", renderDiff);
+setSteps("A", [{step_type: "pour", start_s: 0}]);
+setSteps("B", [{step_type: "pour", start_s: 0}]);
+renderDiff();
+
+form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const fields = form.elements;  // form.title would be the form's own title attribute
+    const payload = {
+        title: fields.title.value,
+        hypothesis: fields.hypothesis.value,
+        changed_variable: fields.changed_variable.value,
+        bean_label: fields.bean_label.value,
+        roast_date: fields.roast_date.value || null,
+        equipment_set_id: Number(fields.equipment_set_id.value),
+        extraction_style: fields.extraction_style.value,
+        water_label: textOrNull(fields.water_label.value),
+        tds_device_label: textOrNull(fields.tds_device_label.value),
+        fixed_conditions_note: textOrNull(fields.fixed_conditions_note.value),
+        planned_trials_per_condition: Number(fields.planned_trials_per_condition.value),
+        conditions: [readCondition("A"), readCondition("B")],
+    };
+    const created = await sendJson("POST", "/experiments", payload);
+    if (created) window.location.href = `/pages/experiments/${created.id}`;
+});
+</script>
+{% endblock %}

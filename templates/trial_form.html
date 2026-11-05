@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}試行を記録{% endblock %}
+{% block content %}
+<h1>試行を記録：{{ experiment.title }}</h1>
+<p><a href="/pages/experiments/{{ experiment.id }}">実験に戻る</a></p>
+<form id="trial-form">
+    <label>条件
+        <select name="condition_id" required>
+            {% for condition in experiment.conditions %}
+            <option value="{{ condition.id }}" data-dose="{{ condition.dose_g }}" {% if condition.label == experiment.next_condition_label %}selected{% endif %}>
+                {{ condition.label }}：{{ condition.name }}{% if condition.label == experiment.next_condition_label %}（次に淹れる条件）{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </label>
+
+    <fieldset>
+        <legend>抽出</legend>
+        <label>抽出日時 <input name="brewed_at" type="datetime-local" required></label>
+        <div class="inline">
+            <label>実測粉量 (g) <input name="dose_g_actual" type="number" step="0.01" min="0" required></label>
+            <label>飲料重量 (g) <input name="beverage_mass_g" type="number" step="0.01" min="0"></label>
+            <label>抽出時間 (秒) <input name="brew_time_s" type="number" step="1" min="0"></label>
+        </div>
+        <p class="muted">抽出時間は最初の注湯から、ドリッパーを容器から外すまで。飲料重量は抽出後にカップ側で量った値。</p>
+        <label class="inline"><input name="followed_plan" type="checkbox" checked> 計画どおりに淹れた</label>
+        <label id="deviation-field" hidden>逸脱の内容（必須） <input name="deviation_note"></label>
+    </fieldset>
+
+    <fieldset>
+        <legend>TDS測定（同じ飲料を複数回測ると、測定のばらつきを分けられる）</legend>
+        <table>
+            <thead><tr><th>TDS (%)</th><th>サンプル温度 (℃)</th><th></th></tr></thead>
+            <tbody id="tds-rows"></tbody>
+        </table>
+        <button type="button" id="add-tds">測定を追加</button>
+    </fieldset>
+
+    <fieldset>
+        <legend>官能評価（任意。1項目以上を入れると保存される）</legend>
+        <label>総合点
+            <select name="overall_score">
+                <option value="">—</option>
+                {% for value in range(1, 11) %}<option value="{{ value }}">{{ value }}</option>{% endfor %}
+            </select>
+        </label>
+        <div class="inline">
+            {% for field, label in [("acidity", "酸味"), ("sweetness", "甘味"), ("bitterness", "苦味"), ("body", "ボディ"), ("aroma", "香り")] %}
+            <label>{{ label }}
+                <select name="{{ field }}">
+                    <option value="">—</option>
+                    {% for value in range(0, 6) %}<option value="{{ value }}">{{ value }}</option>{% endfor %}
+                </select>
+            </label>
+            {% endfor %}
+        </div>
+        <p class="muted">属性は良し悪しではなく、感じた強さ（0＝感じない、5＝非常に強い）。</p>
+        <label class="inline"><input name="blinded" type="checkbox"> どちらの条件か知らずに評価した</label>
+        <label>評価メモ <input name="sensory_note"></label>
+    </fieldset>
+
+    <label>メモ <textarea name="note"></textarea></label>
+    <button type="submit">保存</button>
+</form>
+{% endblock %}
+
+{% block script %}
+<script>
+const form = document.getElementById("trial-form");
+const fields = form.elements;
+const RATINGS = ["overall_score", "acidity", "sweetness", "bitterness", "body", "aroma"];
+
+function tdsRow() {
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td><input type="number" step="0.01" min="0" data-field="tds_pct"></td>'
+        + '<td><input type="number" step="0.1" min="0" max="100" data-field="sample_temp_c"></td>'
+        + '<td><button type="button">削除</button></td>';
+    tr.querySelector("button").addEventListener("click", () => tr.remove());
+    return tr;
+}
+
+function setPlannedDose() {
+    const option = fields.condition_id.selectedOptions[0];
+    fields.dose_g_actual.value = option.dataset.dose;
+}
+
+const tdsRows = document.getElementById("tds-rows");
+document.getElementById("add-tds").addEventListener("click", () => tdsRows.appendChild(tdsRow()));
+tdsRows.append(tdsRow(), tdsRow());
+
+fields.followed_plan.addEventListener("change", () => {
+    document.getElementById("deviation-field").hidden = fields.followed_plan.checked;
+});
+fields.condition_id.addEventListener("change", setPlannedDose);
+fields.brewed_at.value = nowForLocalInput();
+setPlannedDose();
+
+function readTdsReadings() {
+    return [...tdsRows.querySelectorAll("tr")]
+        .map((tr) => ({
+            tds_pct: numberOrNull(tr.querySelector('[data-field="tds_pct"]').value),
+            sample_temp_c: numberOrNull(tr.querySelector('[data-field="sample_temp_c"]').value),
+        }))
+        .filter((reading) => reading.tds_pct !== null);
+}
+
+function readSensory() {
+    const ratings = Object.fromEntries(RATINGS.map((name) => [name, numberOrNull(fields[name].value)]));
+    if (Object.values(ratings).every((value) => value === null)) return null;
+    return {...ratings, blinded: fields.blinded.checked, note: textOrNull(fields.sensory_note.value)};
+}
+
+form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = {
+        brewed_at: localInputToIso(fields.brewed_at.value),
+        dose_g_actual: numberOrNull(fields.dose_g_actual.value),
+        beverage_mass_g: numberOrNull(fields.beverage_mass_g.value),
+        brew_time_s: numberOrNull(fields.brew_time_s.value),
+        followed_plan: fields.followed_plan.checked,
+        deviation_note: fields.followed_plan.checked ? null : textOrNull(fields.deviation_note.value),
+        tds_readings: readTdsReadings(),
+        sensory: readSensory(),
+        note: textOrNull(fields.note.value),
+    };
+    const created = await sendJson("POST", `/conditions/${fields.condition_id.value}/trials`, payload);
+    if (created) window.location.href = "/pages/experiments/{{ experiment.id }}";
+});
+</script>
+{% endblock %}

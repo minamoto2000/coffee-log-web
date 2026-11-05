@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}試行 {{ trial.condition_label }}{{ trial.trial_no }}{% endblock %}
+{% block content %}
+{% set d = trial.derived %}
+<h1>試行 {{ trial.condition_label }}-{{ trial.trial_no }}</h1>
+<p><a href="/pages/experiments/{{ trial.experiment_id }}">実験に戻る</a></p>
+{% if trial.excluded %}<p class="error">この試行は比較から除外されています：{{ trial.exclusion_reason }}</p>{% endif %}
+{% if not trial.followed_plan %}<p class="error">計画から逸脱した試行です（比較では既定で除外）：{{ trial.deviation_note }}</p>{% endif %}
+
+<div class="card">
+    <h2>派生値（保存せず、測定値から毎回算出）</h2>
+    <dl>
+        <dt>TDS平均</dt><dd>{{ d.tds_mean_pct.value | number(2) }} %（{{ d.tds_mean_pct.n }} 回測定）</dd>
+        <dt>測定のSD</dt><dd>{{ d.tds_reading_sd_pct.value | number(3) }} %</dd>
+        <dt>EY</dt>
+        <dd>
+            {% if d.ey_pct.value is not none %}{{ d.ey_pct.value | number(1) }} %
+            {% else %}算出できません（{{ {"NO_TDS_READING": "TDSの測定がない", "NO_BEVERAGE_MASS": "飲料重量がない"}[d.ey_pct.null_reason] }}）{% endif %}
+            <br><span class="muted">{{ d.ey_pct.method }}：EY = TDS × 飲料重量 ÷ 実測粉量。粉に残った液は数えない（透過式の近似）。</span>
+        </dd>
+        <dt>焙煎後日数</dt><dd>{{ d.days_since_roast if d.days_since_roast is not none else "—" }}{% if d.days_since_roast is not none %} 日{% endif %}</dd>
+        <dt>計画総湯量</dt><dd>{{ d.planned_total_water_g }} g</dd>
+    </dl>
+</div>
+
+<div class="card">
+    <h2>抽出の記録</h2>
+    <form id="trial-form">
+        <label>抽出日時 <input name="brewed_at" type="datetime-local" required></label>
+        <div class="inline">
+            <label>実測粉量 (g) <input name="dose_g_actual" type="number" step="0.01" min="0" required value="{{ trial.measured.dose_g_actual }}"></label>
+            <label>飲料重量 (g) <input name="beverage_mass_g" type="number" step="0.01" min="0" value="{{ trial.measured.beverage_mass_g if trial.measured.beverage_mass_g is not none else '' }}"></label>
+            <label>抽出時間 (秒) <input name="brew_time_s" type="number" step="1" min="0" value="{{ trial.measured.brew_time_s if trial.measured.brew_time_s is not none else '' }}"></label>
+        </div>
+        <label class="inline"><input name="followed_plan" type="checkbox" {% if trial.followed_plan %}checked{% endif %}> 計画どおりに淹れた</label>
+        <label>逸脱の内容 <input name="deviation_note" value="{{ trial.deviation_note or '' }}"></label>
+        <label class="inline"><input name="excluded" type="checkbox" {% if trial.excluded %}checked{% endif %}> 比較から除外する</label>
+        <label>除外の理由 <input name="exclusion_reason" value="{{ trial.exclusion_reason or '' }}"></label>
+        <label>メモ <textarea name="note">{{ trial.note or '' }}</textarea></label>
+        <button type="submit">記録を更新</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>TDS測定</h2>
+    <table>
+        <thead><tr><th>TDS (%)</th><th>サンプル温度 (℃)</th><th></th></tr></thead>
+        <tbody>
+        {% for reading in trial.measured.tds_readings %}
+            <tr>
+                <td>{{ reading.tds_pct | number(2) }}</td>
+                <td>{{ reading.sample_temp_c | number(1) }}</td>
+                <td><button type="button" data-delete-reading="{{ reading.id }}">削除</button></td>
+            </tr>
+        {% else %}
+            <tr><td colspan="3">測定はありません。</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <form id="tds-form" class="inline">
+        <label>TDS (%) <input name="tds_pct" type="number" step="0.01" min="0" required></label>
+        <label>サンプル温度 (℃) <input name="sample_temp_c" type="number" step="0.1" min="0" max="100"></label>
+        <button type="submit">測定を追加</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>官能評価</h2>
+    {% set s = trial.sensory %}
+    <form id="sensory-form">
+        <label>総合点
+            <select name="overall_score">
+                <option value="">—</option>
+                {% for value in range(1, 11) %}<option value="{{ value }}" {% if s and s.overall_score == value %}selected{% endif %}>{{ value }}</option>{% endfor %}
+            </select>
+        </label>
+        <div class="inline">
+            {% for field, label in [("acidity", "酸味"), ("sweetness", "甘味"), ("bitterness", "苦味"), ("body", "ボディ"), ("aroma", "香り")] %}
+            <label>{{ label }}
+                <select name="{{ field }}">
+                    <option value="">—</option>
+                    {% for value in range(0, 6) %}<option value="{{ value }}" {% if s and s[field] == value %}selected{% endif %}>{{ value }}</option>{% endfor %}
+                </select>
+            </label>
+            {% endfor %}
+        </div>
+        <label class="inline"><input name="blinded" type="checkbox" {% if s and s.blinded %}checked{% endif %}> どちらの条件か知らずに評価した</label>
+        <label>評価メモ <input name="note" value="{{ s.note if s and s.note else '' }}"></label>
+        <div class="actions">
+            <button type="submit">評価を保存</button>
+            {% if s %}<button type="button" id="delete-sensory">評価を削除</button>{% endif %}
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <h2>試行の削除</h2>
+    <p class="muted">誤って登録した場合だけ削除します。比較から外すだけなら「比較から除外する」を使います。</p>
+    <button type="button" id="delete-trial">この試行を削除</button>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+const TRIAL_URL = "/trials/{{ trial.id }}";
+const reload = () => window.location.reload();
+
+function toLocalInput(iso) {
+    const date = new Date(iso);
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().slice(0, 16);
+}
+
+const trialForm = document.getElementById("trial-form");
+const trialFields = trialForm.elements;
+trialFields.brewed_at.value = toLocalInput({{ trial.brewed_at.isoformat() | tojson }});
+trialForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = {
+        brewed_at: localInputToIso(trialFields.brewed_at.value),
+        dose_g_actual: numberOrNull(trialFields.dose_g_actual.value),
+        beverage_mass_g: numberOrNull(trialFields.beverage_mass_g.value),
+        brew_time_s: numberOrNull(trialFields.brew_time_s.value),
+        followed_plan: trialFields.followed_plan.checked,
+        deviation_note: textOrNull(trialFields.deviation_note.value),
+        excluded: trialFields.excluded.checked,
+        exclusion_reason: textOrNull(trialFields.exclusion_reason.value),
+        note: textOrNull(trialFields.note.value),
+    };
+    if (await sendJson("PATCH", TRIAL_URL, payload)) reload();
+});
+
+const tdsForm = document.getElementById("tds-form");
+tdsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = {
+        tds_pct: numberOrNull(tdsForm.elements.tds_pct.value),
+        sample_temp_c: numberOrNull(tdsForm.elements.sample_temp_c.value),
+    };
+    if (await sendJson("POST", `${TRIAL_URL}/tds-readings`, payload)) reload();
+});
+document.querySelectorAll("[data-delete-reading]").forEach((button) => {
+    button.addEventListener("click", async () => {
+        if (await sendJson("DELETE", `/tds-readings/${button.dataset.deleteReading}`)) reload();
+    });
+});
+
+const sensoryForm = document.getElementById("sensory-form");
+sensoryForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const fields = sensoryForm.elements;
+    const payload = {blinded: fields.blinded.checked, note: textOrNull(fields.note.value)};
+    ["overall_score", "acidity", "sweetness", "bitterness", "body", "aroma"].forEach((name) => {
+        payload[name] = numberOrNull(fields[name].value);
+    });
+    if (await sendJson("PUT", `${TRIAL_URL}/sensory`, payload)) reload();
+});
+const deleteSensory = document.getElementById("delete-sensory");
+if (deleteSensory) {
+    deleteSensory.addEventListener("click", async () => {
+        if (await sendJson("DELETE", `${TRIAL_URL}/sensory`)) reload();
+    });
+}
+
+document.getElementById("delete-trial").addEventListener("click", async () => {
+    if (!confirm("この試行を削除しますか？TDS測定と官能評価も削除されます。")) return;
+    if (await sendJson("DELETE", TRIAL_URL)) window.location.href = "/pages/experiments/{{ trial.experiment_id }}";
+});
+</script>
+{% endblock %}
