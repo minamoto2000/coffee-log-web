@@ -122,7 +122,7 @@ def test_experiment_detail_shows_diff_plan_and_trials(client, experiment, tmp_pa
     assert "1.39" in html  # TDS mean of the trial
     assert "19.7" in html  # EY of the trial, 1 decimal
     assert "2026-11-05 08:30" in html  # local time
-    assert "この実験を削除" not in html  # has a trial
+    assert 'id="delete-experiment"' not in html  # deletion is offered only without trials
     assert_scripts_parse(html, tmp_path)
 
 
