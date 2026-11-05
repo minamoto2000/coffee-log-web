@@ -12,7 +12,7 @@
 2. 科学的根拠が不十分な改善提案を中心機能にしない
 3. 条件を変えたときの影響を、TDSなどの測定で自分で確かめられるようにする
 
-新しいCore Vertical Sliceは次のとおりです（未実装）。
+新しいCore Vertical Sliceは次のとおりです。APIでは一通り動作し、画面は未実装です。
 
 ```text
 実験作成（2条件＋抽出工程）
@@ -22,21 +22,26 @@
 
 移行はPR単位で進め、各PRはテストが通る状態で閉じます。
 
-- 完了：ルールベースRecommendationとExternalBenchmarkの削除
-- 次：パッケージ構造の整理、実験・条件・工程・試行のドメインとAPI、比較API、画面
+- 完了：ルールベースRecommendationとExternalBenchmarkの削除、`app/` パッケージへの分割、domainの純粋関数、新テーブル、実験・試行・比較のAPI
+- 次：実験・試行・比較の画面
 - 最後：旧ドメイン（BrewLog / Evaluation）の撤去とREADMEの全面改稿
 
 移行前の版（記録＋ルールベース改善提案）はタグ `legacy-v1-recommendation` で参照できます。
 
 ### 現在動作する機能
 
+新しいAPI（詳細は `/docs` のOpenAPI）:
+
 ```text
-Equipment Setを登録
-→ Brew Log + Evaluationを同時登録
-→ 保存したログを確認
+POST   /experiments                         実験＋2条件＋工程を作成
+GET    /experiments/{id}                    条件差分・試行の要約・次の条件
+PUT    /conditions/{id}/protocol            計画の置換（試行後は409）
+POST   /conditions/{id}/trials              試行＋TDS測定＋官能評価を記録
+GET    /trials/{id}                         実測値と派生値（TDS平均・EY・焙煎後日数）
+GET    /experiments/{id}/comparison         条件比較（記述統計・2種のばらつき・注意）
 ```
 
-主な画面:
+旧ドメインの画面（PR9で撤去）:
 
 - `/` — Home
 - `/pages/equipment-sets` — Equipment Set一覧

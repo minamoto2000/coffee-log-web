@@ -197,3 +197,13 @@ def overall_scores_by_trial(conn: sqlite3.Connection, trial_ids: list[int]) -> d
         trial_ids,
     ).fetchall()
     return {row["trial_id"]: row["overall_score"] for row in rows}
+
+
+def sensory_by_trial(conn: sqlite3.Connection, trial_ids: list[int]) -> dict[int, sqlite3.Row]:
+    if not trial_ids:
+        return {}
+    placeholders = ", ".join("?" for _ in trial_ids)
+    rows = conn.execute(
+        f"SELECT * FROM sensory_evaluations WHERE trial_id IN ({placeholders})", trial_ids
+    ).fetchall()
+    return {row["trial_id"]: row for row in rows}

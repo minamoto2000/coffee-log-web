@@ -168,11 +168,21 @@ def list_all() -> list[ExperimentListItem]:
 # ---- assembling the read model ---------------------------------------------
 
 
+def plan_diff(conn: sqlite3.Connection, experiment_id: int) -> list:
+    """Differences between the plans of A and B (shared with the comparison)."""
+    conditions = [_condition_read(conn, condition) for condition in repository.list_conditions(conn, experiment_id)]
+    return _diff_of(conditions)
+
+
+def _diff_of(conditions: list[ConditionRead]) -> list:
+    by_label = {condition.label: condition for condition in conditions}
+    return condition_diff(_plan(by_label["A"]), _plan(by_label["B"]))
+
+
 def _read(conn: sqlite3.Connection, experiment_id: int) -> ExperimentRead:
     row = repository.find_experiment(conn, experiment_id)
     conditions = [_condition_read(conn, condition) for condition in repository.list_conditions(conn, experiment_id)]
-    by_label = {condition.label: condition for condition in conditions}
-    diff = condition_diff(_plan(by_label["A"]), _plan(by_label["B"]))
+    diff = _diff_of(conditions)
 
     trials = repository.list_trials_for_experiment(conn, experiment_id)
     trial_ids = [trial["id"] for trial in trials]
