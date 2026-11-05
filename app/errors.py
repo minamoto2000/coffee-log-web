@@ -23,6 +23,13 @@ class EmptyUpdateError(AppError):
     status_code = 400
 
 
+class ConflictError(AppError):
+    """The request is valid but the current state forbids it (e.g. the plan
+    already has trials)."""
+
+    status_code = 409
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
