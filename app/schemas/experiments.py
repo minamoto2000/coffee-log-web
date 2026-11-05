@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.domain.protocol import ConditionPlan, Step, validate_steps
-from app.schemas.common import normalize_stored_datetime
+from app.schemas.common import TimestampsRead, normalize_stored_datetime
 
 # Precision rules (01b 8.5): over-precise input is rejected, never rounded.
 Mass = Annotated[Decimal, Field(gt=0, decimal_places=2)]
@@ -187,16 +187,6 @@ class ConditionUpdate(BaseModel):
 # ---- responses -------------------------------------------------------------
 
 
-class _Timestamps(BaseModel):
-    created_at: datetime
-    updated_at: datetime
-
-    @field_validator("created_at", "updated_at")
-    @classmethod
-    def normalize_timestamps(cls, value: datetime) -> datetime:
-        return normalize_stored_datetime(value)
-
-
 class StepRead(BaseModel):
     seq: int
     step_type: StepType
@@ -209,7 +199,7 @@ class StepRead(BaseModel):
     note: str | None
 
 
-class ConditionRead(_Timestamps):
+class ConditionRead(TimestampsRead):
     id: int
     experiment_id: int
     label: ConditionLabel
@@ -249,7 +239,7 @@ class TrialSummary(BaseModel):
         return normalize_stored_datetime(value)
 
 
-class ExperimentRead(_Timestamps):
+class ExperimentRead(TimestampsRead):
     id: int
     title: str
     hypothesis: str
