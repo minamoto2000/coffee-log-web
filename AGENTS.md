@@ -21,12 +21,12 @@
 
 `coffee-log-web` を一社目就職で説明・変更・Debug・Testできる提出品質にする。
 
-2026-11-04に開発目的を「実験・測定・検証アプリ」へ変更した。MVP範囲と移行手順の正本は `career-management-private` の `01b_Portfolio_MVP_Spec.md`（第12節がPR1〜PR9の順序）である。
+2026-11-04に開発目的を「実験・測定・検証アプリ」へ変更し、2026-11-05に移行（PR1〜PR9）を終えた。MVP範囲の正本は `career-management-private` の `01b_Portfolio_MVP_Spec.md` である。
 
-- 移行はPR単位で進め、各PRはテストが通る状態で閉じる
-- 移行前の版はタグ `legacy-v1-recommendation` で参照する。旧Recommendation・ExternalBenchmarkを復活させない
-- PR3〜PR7（domain・schema・API・比較）は本人が実装し、AIはレビューとヒントに回る
+- 移行前の版はタグ `legacy-v1-recommendation` で参照する。旧Recommendation・ExternalBenchmark・BrewLogを復活させない
+- PR3以降の実装はAIが行ったため、Ownership上のEvidenceは `shown` である。選考で使う前に、説明・小変更・Debugで技術所有権を回収する（`app/domain/` と受入テストが題材に向く）
 - 01bに含まれない機能を先行実装しない
+- 変更はPR単位で行い、各PRはテスト（E2Eを含む）が通る状態で閉じる
 
 提出準備では、機能追加よりも以下を優先する。
 

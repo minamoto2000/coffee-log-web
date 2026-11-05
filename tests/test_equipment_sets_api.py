@@ -81,3 +81,28 @@ def test_delete_is_soft_and_hides_the_set(client):
             "SELECT is_active FROM equipment_sets WHERE id = ?", (removed["id"],)
         ).fetchone()
     assert row["is_active"] == 0
+
+
+def test_required_strings_are_trimmed_and_blank_values_rejected(client):
+    valid = client.post(
+        "/equipment-sets",
+        json={"name": "  Test Set  ", "filter_label": "  Paper  ", "brewer_label": "  V60  ",
+              "grinder_label": "  Grinder  ", "grind_setting_unit": "click", "note": None},
+    )
+    blank = client.post(
+        "/equipment-sets",
+        json={"name": "   ", "filter_label": "Paper", "brewer_label": "V60",
+              "grinder_label": "Grinder", "grind_setting_unit": "click", "note": None},
+    )
+
+    assert valid.status_code == 201
+    assert valid.json()["name"] == "Test Set"
+    assert valid.json()["filter_label"] == "Paper"
+    assert blank.status_code == 422
+
+
+def test_timestamps_are_returned_as_utc(client):
+    created = _create(client)
+
+    for field in ("created_at", "updated_at"):
+        assert created[field].endswith(("Z", "+00:00")), created[field]
