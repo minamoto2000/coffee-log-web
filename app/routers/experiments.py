@@ -9,6 +9,8 @@ from app.schemas.experiments import (
     ExperimentUpdate,
     ProtocolIn,
 )
+from app.schemas.comparison import ComparisonRead
+from app.services import comparison as comparison_service
 from app.services import experiments as service
 
 router = APIRouter(tags=["experiments"])
@@ -27,6 +29,13 @@ def list_experiments() -> list[ExperimentListItem]:
 @router.get("/experiments/{experiment_id}")
 def get_experiment(experiment_id: int) -> ExperimentRead:
     return service.get(experiment_id)
+
+
+@router.get("/experiments/{experiment_id}/comparison")
+def compare_conditions(experiment_id: int, include_deviated: bool = False) -> ComparisonRead:
+    """Descriptive comparison of A and B. Excluded trials never count;
+    deviated trials count only with include_deviated=true."""
+    return comparison_service.get(experiment_id, include_deviated)
 
 
 @router.patch("/experiments/{experiment_id}")
