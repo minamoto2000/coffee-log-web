@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}条件比較：{{ experiment.title }}{% endblock %}
+{% block content %}
+{% macro stats(m, digits) -%}
+{%- set sd = digits + 1 -%}
+{%- if m.n == 0 %}<td>0</td><td>—</td><td>—</td>
+{%- else %}<td>{{ m.n }}</td><td>{{ m.mean | number(sd) }}{% if m.sd is not none %} ± {{ m.sd | number(sd) }}{% endif %}</td><td>{{ m.median | number(sd) }} [{{ m.min | number(digits) }}〜{{ m.max | number(digits) }}]</td>
+{%- endif %}
+{%- endmacro %}
+{% set a = comparison.conditions[0] %}
+{% set b = comparison.conditions[1] %}
+<h1>条件比較：{{ experiment.title }}</h1>
+<p><a href="/pages/experiments/{{ experiment.id }}">実験に戻る</a></p>
+<p>A：{{ a.name }}（{{ a.included_trial_count }} 杯） / B：{{ b.name }}（{{ b.included_trial_count }} 杯）</p>
+<p class="actions">
+    {% if comparison.include_deviated %}
+    <span>逸脱した試行を含めて表示中。</span><a href="?include_deviated=false">逸脱した試行を除く</a>
+    {% else %}
+    <span>計画どおりの試行だけを表示中。</span><a href="?include_deviated=true">逸脱した試行も含める</a>
+    {% endif %}
+    <span class="muted">除外した試行は常に含めません。</span>
+</p>
+
+<div class="card">
+    <h2>注意</h2>
+    {% if comparison.warnings %}
+    <ul class="warnings">
+        {% for warning in comparison.warnings %}
+        <li data-code="{{ warning.code }}">{{ warning_message(warning.code, warning.count) }}</li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>注意はありません。</p>
+    {% endif %}
+    <p class="muted">この画面は記述統計だけを示します。「効果あり」「有意」などの判定はしません。平均差がばらつきより小さい場合、条件の違いによる差かどうかは言えません。</p>
+</div>
+
+<div class="card">
+    <h2>指標ごとの比較</h2>
+    <table>
+        <thead>
+            <tr><th rowspan="2">指標</th><th colspan="3">A</th><th colspan="3">B</th><th rowspan="2">平均差 B−A</th></tr>
+            <tr><th>n</th><th>平均 ± SD</th><th>中央値 [最小〜最大]</th><th>n</th><th>平均 ± SD</th><th>中央値 [最小〜最大]</th></tr>
+        </thead>
+        <tbody>
+        {% for name, (label, digits) in metric_display.items() if a.metrics[name].n or b.metrics[name].n %}
+            <tr data-metric="{{ name }}">
+                <th>{{ label }}</th>
+                {{ stats(a.metrics[name], digits) }}
+                {{ stats(b.metrics[name], digits) }}
+                <td>{{ comparison.differences[name] | number(digits + 1) }}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="8">比較できる試行がありません。</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <p class="muted">どちらの条件にも記録がない指標は表示しません。SDは標本標準偏差（n−1）で、1杯だけの条件では出しません。官能評価は順序尺度のため、平均・SDは参考値として中央値と範囲を優先して読みます。</p>
+</div>
+
+<div class="card">
+    <h2>TDSのばらつき</h2>
+    <table>
+        <thead><tr><th>条件</th><th>測定のばらつき（同じ飲料の反復測定）</th><th>抽出のばらつき（試行ごとのTDS平均のSD）</th></tr></thead>
+        <tbody>
+        {% for label, v in comparison.tds_variability.items() %}
+            <tr>
+                <th>{{ label }}</th>
+                <td>{{ v.measurement_sd.value | number(3) }} %（自由度 {{ v.measurement_sd.degrees_of_freedom }}）</td>
+                <td>{{ v.between_trial_sd.value | number(3) }} %（{{ v.between_trial_sd.n }} 杯）</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <p class="muted">抽出のばらつきが測定のばらつきより十分大きくなければ、杯ごとの違いは測定誤差と区別できません。</p>
+</div>
+
+<div class="card">
+    <h2>各試行の値</h2>
+    <table>
+        <thead><tr><th>指標</th><th>A</th><th>B</th></tr></thead>
+        <tbody>
+        {% for name, (label, digits) in metric_display.items() if a.metrics[name].n or b.metrics[name].n %}
+            <tr>
+                <th>{{ label }}</th>
+                {% for condition in [a, b] %}
+                <td>{% for value in condition.metrics[name]["values"] %}<a href="/pages/trials/{{ value.trial_id }}">#{{ value.trial_no }}</a> {{ value.value | number(digits) }}{% if not loop.last %}、{% endif %}{% else %}—{% endfor %}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

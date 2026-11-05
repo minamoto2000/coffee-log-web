@@ -71,3 +71,42 @@ dl {
 dt {
     font-weight: 600;
 }
+
+.diff {
+    background: #fff4ce;
+    font-weight: 600;
+}
+
+.muted {
+    color: #666;
+}
+
+.warnings li {
+    margin-bottom: 4px;
+}
+
+.two-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.steps-table input,
+.steps-table select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px;
+}
+
+.inline {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+    .two-columns {
+        grid-template-columns: 1fr;
+    }
+}
