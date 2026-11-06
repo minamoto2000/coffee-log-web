@@ -54,7 +54,6 @@
 - `01d_Portfolio_Project_Guide.md`
 - `03c_Job_Search_Selection_Training/portfolio_ownership/README.md`
 - `03c_Job_Search_Selection_Training/portfolio_ownership/status.md`
-- `03c_Job_Search_Selection_Training/portfolio_ownership/codex_handoff.md`
 
 管理リポジトリまたは必要なファイルへアクセスできない場合は、確認不能であることを明記すること。
 
@@ -86,9 +85,9 @@
 
 ただし、実装状況の正本ではない。
 
-### 最新のCodex学習Evidence
+### 最新の演習Evidence
 
-`career-management-private/03c_Job_Search_Selection_Training/portfolio_ownership/codex_handoff.md` は、最新のCodexセッションで得られたEvidenceのみを保持する。
+`status.md` の「直近セッションEvidence」節が、最新1セッションのEvidenceを保持する（2026-11-06に `codex_handoff.md` を廃止して統合した）。
 
 これは実装状況や最終的なOwnership状態の正本ではない。
 
@@ -202,11 +201,10 @@ Evidenceの強さは以下で扱う。
 
 Ownershipセッション開始時は、原則として以下を行う。
 
-1. 最新の `portfolio_ownership/status.md` を読む
-2. 最新の `codex_handoff.md` を読む
-3. 対象となる `coffee-log-web` の実コードを確認する
-4. 現在の課題に必要なcurriculumだけを読む
-5. 記録されている現在位置から再開する
+1. 最新の `portfolio_ownership/status.md` を読む（「直近セッションEvidence」と「次にやること」を含む）
+2. 対象となる `coffee-log-web` の実コードを確認する
+3. 現在の課題に必要なcurriculumだけを読む
+4. 記録されている現在位置から再開する
 
 毎回すべての管理ファイルやすべてのcurriculumを読み直さない。
 
@@ -300,15 +298,11 @@ commit SHAを推測してはいけない。
 
 READMEは目標backlogではなく、実際に完成・検証された挙動を説明する。
 
-## セッション終了時のhandoff
+## セッション終了時のEvidence記録
 
-Portfolio Ownershipセッション終了時は、以下を更新する。
+Portfolio Ownershipセッション終了時は、`career-management-private/03c_Job_Search_Selection_Training/portfolio_ownership/status.md` の「直近セッションEvidence」節だけを、今回の内容で置き換える。
 
-`career-management-private/03c_Job_Search_Selection_Training/portfolio_ownership/codex_handoff.md`
-
-handoffには最新セッションのEvidenceだけを残す。
-
-会話ログを永続的に追記し続けない。
+最新セッションのEvidenceだけを残し、会話ログを永続的に追記し続けない。
 
 以下を含める。
 
@@ -327,12 +321,12 @@ handoffには最新セッションのEvidenceだけを残す。
 - 未確認事項
 - 次回の正確な開始位置
 
-`status.md` をCodex自身の判断でOwnership READYへ変更しない。
+「直近セッションEvidence」以外の節（A / B / C、条件付き合格、READY、長期的な記録）は、演習を行ったAI自身の判断で変更しない。
 
-最終的なOwnership進捗評価と `status.md` 更新はPortfolio管理側で行う。
+最終的なOwnership進捗評価と長期的な節の更新は、Portfolio管理側で行う。
 
 ## セッション継続ルール
 
-`codex_handoff.md` に未完了課題が記録されている場合は、ユーザーが明示的に優先順位を変えない限り、その課題を先に再開する。
+「直近セッションEvidence」に未完了課題が記録されている場合は、ユーザーが明示的に優先順位を変えない限り、その課題を先に再開する。
 
-handoffに書かれた実装状況と実リポジトリの内容が矛盾する場合は、実リポジトリを優先し、矛盾を報告する。
+「直近セッションEvidence」に書かれた実装状況と実リポジトリの内容が矛盾する場合は、実リポジトリを優先し、矛盾を報告する。
