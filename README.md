@@ -211,7 +211,7 @@ python -m pytest -q
 | --- | --- | --- |
 | domain | `tests/test_domain_*.py` | 工程の検証、差分、EY、統計、比較、状態、警告を手計算の値と照合 |
 | DB制約 | `tests/test_db_schema.py` | 生SQLで不正な行を入れると `IntegrityError` になること |
-| API | `tests/test_*_api.py` | 作成・更新・削除、409、PATCHのmerge検証、途中失敗時に何も残らないこと |
+| API | `tests/test_*_api.py` | 作成・更新・削除、400・404・409・422とエラー本文の形、PATCHのmerge検証、拒否や途中失敗の後にDBが元のままであること（計画置換の途中失敗で旧計画に戻る、試行作成の途中失敗で何も残らない） |
 | 受入 | `tests/test_acceptance_scenario.py` | 50℃／93℃の受入シナリオをHTTPだけで実行し、比較の全数値を照合 |
 | 画面 | `tests/test_pages.py` | 各画面が担当する値を含むこと、埋め込みJSが構文として正しいこと（`node` がある場合） |
 | E2E | `tests/e2e/` | 実サーバーとChromiumで、器具登録→実験作成→試行4杯→比較→除外を操作 |

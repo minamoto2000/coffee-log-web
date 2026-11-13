@@ -347,3 +347,104 @@ def test_replace_protocol_validates_steps(client):
     )
 
     assert response.status_code == 422
+
+
+# ---- failure paths: nothing changes when a request is refused ------------------
+
+
+def plan_of(client, experiment_id, label):
+    detail = client.get(f"/experiments/{experiment_id}").json()
+    condition = next(c for c in detail["conditions"] if c["label"] == label)
+    return {key: condition[key] for key in ("dose_g", "grind_setting_value", "steps")}
+
+
+def test_replace_protocol_rolls_back_to_the_old_plan_on_failure(client, monkeypatch):
+    """The old steps are deleted before the new ones are inserted; a failure
+    in between must restore the old plan, not leave a condition without steps."""
+    experiment = create_experiment(client)
+    target = condition_id(experiment, "A")
+    before = plan_of(client, experiment["id"], "A")
+    original = experiment_repository.insert_steps
+
+    def fail(conn, condition_id, rows):
+        raise RuntimeError("simulated failure after the old steps were deleted")
+
+    monkeypatch.setattr(experiment_repository, "insert_steps", fail)
+    with pytest.raises(RuntimeError):
+        client.put(f"/conditions/{target}/protocol", json={"dose_g": 16, "grind_setting_value": 25, "steps": steps(60)})
+    monkeypatch.setattr(experiment_repository, "insert_steps", original)
+
+    assert plan_of(client, experiment["id"], "A") == before
+    with database.get_connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM protocol_steps WHERE condition_id = ?", (target,)).fetchone()[0] == 3
+
+
+def test_refused_plan_and_fixed_condition_changes_leave_data_unchanged(client):
+    experiment = create_experiment(client)
+    target = condition_id(experiment, "A")
+    add_trial(target)
+    before = client.get(f"/experiments/{experiment['id']}").json()
+
+    protocol = client.put(f"/conditions/{target}/protocol", json={"dose_g": 16, "steps": steps(60)})
+    fixed = client.patch(f"/experiments/{experiment['id']}", json={"bean_label": "Kenya", "title": "renamed"})
+    deleted = client.delete(f"/experiments/{experiment['id']}")
+
+    assert (protocol.status_code, fixed.status_code, deleted.status_code) == (409, 409, 409)
+    after = client.get(f"/experiments/{experiment['id']}").json()
+    assert after == before  # the free field in the same PATCH was not applied either
+
+
+def test_equipment_set_is_a_fixed_condition_after_trials(client):
+    experiment = create_experiment(client)
+    other_set = create_equipment_set(client)
+    add_trial(condition_id(experiment, "A"))
+
+    response = client.patch(f"/experiments/{experiment['id']}", json={"equipment_set_id": other_set})
+
+    assert response.status_code == 409
+    assert client.get(f"/experiments/{experiment['id']}").json()["equipment_set_id"] == experiment["equipment_set_id"]
+
+
+def test_patch_to_missing_or_hidden_equipment_set_returns_404(client):
+    experiment = create_experiment(client)
+    hidden_set = create_equipment_set(client)
+    assert client.delete(f"/equipment-sets/{hidden_set}").status_code == 200
+
+    hidden = client.patch(f"/experiments/{experiment['id']}", json={"equipment_set_id": hidden_set})
+    missing = client.patch(f"/experiments/{experiment['id']}", json={"equipment_set_id": 999})
+
+    assert (hidden.status_code, missing.status_code) == (404, 404)
+    assert client.get(f"/experiments/{experiment['id']}").json()["equipment_set_id"] == experiment["equipment_set_id"]
+
+
+def test_missing_resources_return_404(client):
+    assert client.patch("/experiments/999", json={"title": "x"}).status_code == 404
+    assert client.put("/conditions/999/protocol", json={"dose_g": 15, "steps": steps(93)}).status_code == 404
+
+
+@pytest.mark.parametrize("patch", [{"name": None}, {"name": "   "}])
+def test_patch_condition_rejects_blank_or_null_name(client, patch):
+    experiment = create_experiment(client)
+
+    response = client.patch(f"/conditions/{condition_id(experiment, 'A')}", json=patch)
+
+    assert response.status_code == 422
+    assert client.get(f"/experiments/{experiment['id']}").json()["conditions"][0]["name"] == "50 C bloom"
+
+
+def test_error_bodies_follow_the_documented_shape(client):
+    """README: 400 / 404 / 409 carry a string detail; 422 carries a list of
+    {loc, msg, type} for request validation and merge validation alike."""
+    experiment = create_experiment(client)
+    add_trial(condition_id(experiment, "A"))
+
+    empty = client.patch(f"/experiments/{experiment['id']}", json={})
+    missing = client.get("/experiments/999")
+    conflict = client.delete(f"/experiments/{experiment['id']}")
+    invalid = client.patch(f"/experiments/{experiment['id']}", json={"planned_trials_per_condition": 0})
+
+    for response, status in ((empty, 400), (missing, 404), (conflict, 409)):
+        assert response.status_code == status
+        assert isinstance(response.json()["detail"], str)
+    assert invalid.status_code == 422
+    assert {"loc", "msg", "type"} <= set(invalid.json()["detail"][0])
