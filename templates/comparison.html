@@ -48,7 +48,7 @@
                 <th>{{ label }}</th>
                 {{ stats(a.metrics[name], digits) }}
                 {{ stats(b.metrics[name], digits) }}
-                <td>{{ comparison.differences[name] | number(digits + 1) }}</td>
+                <td>{{ comparison.differences[name].mean_b_minus_a | number(digits + 1) }}</td>
             </tr>
         {% else %}
             <tr><td colspan="8">比較できる試行がありません。</td></tr>

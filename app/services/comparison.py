@@ -9,6 +9,7 @@ from app.repositories import experiments as repository
 from app.schemas.comparison import (
     ComparisonRead,
     ConditionComparisonRead,
+    DifferenceRead,
     MetricRead,
     MetricValueRead,
     PooledSdRead,
@@ -86,7 +87,7 @@ def get(experiment_id: int, include_deviated: bool = False) -> ComparisonRead:
             )
             for label, condition in result.conditions.items()
         },
-        differences=result.differences,
+        differences={name: DifferenceRead(mean_b_minus_a=value) for name, value in result.differences.items()},
         warnings=[WarningRead(code=warning.code, count=warning.count) for warning in result.warnings],
     )
 

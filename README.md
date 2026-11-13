@@ -111,7 +111,7 @@ EYの式は粉に残った液を数えないため、透過式の近似です。
 
 ## API
 
-JSONのAPIです。詳細はアプリ起動後の `/docs`（OpenAPI）にあります。作成は201、削除は204（器具セットは論理削除のため200で更新後の値）を返します。
+JSONのAPIです。リクエスト・応答の全項目はアプリ起動後の `/docs`（OpenAPI）にあります。POSTによる作成は201、PUT（官能評価の作成または置換、計画の置換）とPATCHは200、削除は204（器具セットは論理削除のため200で更新後の値）を返します。
 
 ```text
 GET    POST          /equipment-sets
@@ -129,6 +129,16 @@ POST                 /trials/{id}/tds-readings
 DELETE               /tds-readings/{id}
 PUT           DELETE /trials/{id}/sensory
 ```
+
+### 主な応答の形
+
+- `GET /trials/{id}`：`measured`（`dose_g_actual`・`beverage_mass_g`・`brew_time_s`・`tds_readings`）と `derived`（`tds_mean_pct`・`tds_reading_sd_pct`・`ey_pct`・`days_since_roast`・`planned_total_water_g`）に分けて返す。`tds_readings` の各要素は `id` を持ち、`DELETE /tds-readings/{id}` で1件ずつ消せる
+- `GET /experiments/{id}/comparison`
+  - `conditions[]`：条件ごとの `included_trial_count` と、指標ごとの `n`・`values[{trial_id, trial_no, brewed_at, value}]`・`mean`・`sd`・`median`・`min`・`max`
+  - `tds_variability.{A,B}`：`measurement_sd`（`value`・`groups_used`（2回以上測った試行の数）・`degrees_of_freedom`）と `between_trial_sd`（`value`・`n`）
+  - `differences.{指標}.mean_b_minus_a`：B−Aの平均差。どちらかに値がなければ `null`
+  - `warnings[]`：`{code, count}`（`count` は `DEVIATED_OR_EXCLUDED` だけが持つ）
+- エラー：本文は常に `{"detail": ...}`。422の `detail` は `loc`・`msg`・`type` を持つ要素の配列（入力の検証とPATCHをmergeした後の検証で同じ形）、400・404・409の `detail` は理由の文字列
 
 ### HTTPステータス
 

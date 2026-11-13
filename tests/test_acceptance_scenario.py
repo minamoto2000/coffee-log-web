@@ -109,12 +109,12 @@ def test_bloom_temperature_experiment_end_to_end(client):
     assert a["metrics"]["tds_pct"]["mean"] == pytest.approx(sum(a_tds) / 3)
     assert a["metrics"]["tds_pct"]["sd"] == pytest.approx(sample_sd(a_tds))
     assert a["metrics"]["tds_pct"]["median"] == pytest.approx(1.31)
-    assert body["differences"]["tds_pct"] == pytest.approx(0.10)
+    assert body["differences"]["tds_pct"]["mean_b_minus_a"] == pytest.approx(0.10)
 
     a_ey = [1.31 * 212 / 15, 1.34 * 213 / 15, 1.29 * 211 / 15]
     b_ey = [1.41 * 210 / 15, 1.44 * 211 / 15, 1.39 * 212 / 15]
     assert b["metrics"]["ey_pct"]["values"][0]["value"] == pytest.approx(b_ey[0])
-    assert body["differences"]["ey_pct"] == pytest.approx(sum(b_ey) / 3 - sum(a_ey) / 3)
+    assert body["differences"]["ey_pct"]["mean_b_minus_a"] == pytest.approx(sum(b_ey) / 3 - sum(a_ey) / 3)
 
     assert a["metrics"]["overall_score"]["median"] == 6
     assert b["metrics"]["overall_score"]["median"] == 7
@@ -168,5 +168,5 @@ def test_comparison_default_omits_deviated_trials(client):
     assert {"code": "EY_METHOD_ASSUMPTION", "count": None} in default["warnings"]
     assert with_deviated["include_deviated"] is True
     assert with_deviated["conditions"][1]["included_trial_count"] == 1
-    assert with_deviated["differences"]["tds_pct"] is None  # A has no trials
+    assert with_deviated["differences"]["tds_pct"]["mean_b_minus_a"] is None  # A has no trials
     assert client.get("/experiments/999/comparison").status_code == 404

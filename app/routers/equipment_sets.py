@@ -28,5 +28,5 @@ def update_equipment_set(equipment_set_id: int, data: EquipmentSetUpdate) -> Equ
 
 @router.delete("/{equipment_set_id}")
 def delete_equipment_set(equipment_set_id: int) -> EquipmentSetRead:
-    """Soft delete: sets is_active = false. Past brew log snapshots are kept."""
+    """Soft delete: sets is_active = false. Snapshots copied into experiments are kept."""
     return service.deactivate(equipment_set_id)
