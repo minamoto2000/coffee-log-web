@@ -188,6 +188,8 @@ tests/e2e/             実サーバー＋ブラウザのE2E
 
 ## ローカル実行
 
+必要なもの：Python 3.12以上（3.12・3.13・3.14で起動とテストを確認）。`python` コマンドがない環境（Ubuntuの標準状態など）では、最初の行だけ `python3` に読み替えてください。仮想環境を有効にした後は `python` で動きます。
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows PowerShell: .\.venv\Scripts\Activate.ps1
@@ -199,6 +201,18 @@ uvicorn app.main:app --reload
 - API Docs：`http://127.0.0.1:8000/docs`
 
 起動時にSQLiteのschemaを作成します。DBファイルは既定でリポジトリ直下の `coffee_log_web.db` で、環境変数 `COFFEE_LOG_DB_PATH` で変えられます。移行前のDBファイルを使い続けても動きますが、旧テーブル（`brew_logs` など）は参照しません。
+
+### 動作確認
+
+画面では、ホーム → 器具セットを登録 → 実験を作成（条件Aの工程を入力し「Aの計画をBへ複製」で写してから1か所だけ変える）→ 実験詳細の「試行を記録する」で案内どおりA・Bを交互に記録 → 「条件を比較する」、の順に操作します。
+
+APIでは、別の端末から次のように試せます（`/docs` からも実行できます）。受入シナリオ全体のリクエスト本文は `tests/test_acceptance_scenario.py` にあります。
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/equipment-sets -H 'Content-Type: application/json' \
+  -d '{"name": "Home V60", "filter_label": "Paper", "brewer_label": "V60", "grinder_label": "Grinder", "grind_setting_unit": "click"}'
+curl -s http://127.0.0.1:8000/experiments
+```
 
 ## テスト
 
