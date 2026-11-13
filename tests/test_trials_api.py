@@ -322,3 +322,46 @@ def test_trials_drive_experiment_status_and_locks(client, experiment):
     assert locked.status_code == 409
     assert reached["status"] == "PLANNED_REACHED"
     assert reached["next_condition_label"] == "A"
+
+
+# ---- failure paths: nothing changes when a request is refused ------------------
+
+
+def test_create_rolls_back_when_a_later_tds_reading_fails(client, experiment, monkeypatch):
+    original = trial_repository.insert_tds_reading
+    calls = {"n": 0}
+
+    def fail_on_second(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("simulated failure on the second reading")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(trial_repository, "insert_tds_reading", fail_on_second)
+
+    with pytest.raises(RuntimeError):
+        client.post(f"/conditions/{experiment['A']}/trials", json=trial_payload())
+
+    assert (count("trials"), count("tds_readings"), count("sensory_evaluations")) == (0, 0, 0)
+
+
+def test_refused_patch_leaves_the_trial_unchanged(client, experiment):
+    trial = create_trial(client, experiment["A"])
+    before = client.get(f"/trials/{trial['id']}").json()
+
+    response = client.patch(f"/trials/{trial['id']}", json={"followed_plan": False, "note": "changed"})
+
+    assert response.status_code == 422
+    assert {"loc", "msg", "type"} <= set(response.json()["detail"][0])  # same shape as request validation
+    assert client.get(f"/trials/{trial['id']}").json() == before
+
+
+def test_refused_tds_readings_are_not_stored(client, experiment):
+    trial = create_trial(client, experiment["A"], tds_readings=[{"tds_pct": 1.4}] * 10)
+
+    over_limit = client.post(f"/trials/{trial['id']}/tds-readings", json={"tds_pct": 1.4})
+    over_precise = client.post(f"/trials/{trial['id']}/tds-readings", json={"tds_pct": 1.385})
+
+    assert (over_limit.status_code, over_precise.status_code) == (409, 422)
+    assert isinstance(over_limit.json()["detail"], str)
+    assert count("tds_readings") == 10

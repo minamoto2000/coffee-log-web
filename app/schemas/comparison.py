@@ -58,10 +58,14 @@ class WarningRead(BaseModel):
     count: int | None = None
 
 
+class DifferenceRead(BaseModel):
+    mean_b_minus_a: float | None  # null when either condition has no value
+
+
 class ComparisonRead(BaseModel):
     experiment_id: int
     include_deviated: bool
     conditions: list[ConditionComparisonRead]
     tds_variability: dict[ConditionLabel, TdsVariabilityRead]
-    differences: dict[str, float | None]  # mean of B minus mean of A
+    differences: dict[str, DifferenceRead]
     warnings: list[WarningRead]

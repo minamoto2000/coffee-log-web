@@ -14,6 +14,16 @@
 
 対象ユーザーは、屈折計などでTDSを測り、抽出を本格的に検証したい個人1人です。推薦や自動最適化はしません。
 
+## AIの利用と担当範囲
+
+現在のコード（2026-11-04以降の再設計版）は、AI（Claude）が実装しました。commitのauthorが `Claude` のものがAIの変更です。
+
+| 作業 | 担当 |
+| --- | --- |
+| アプリの目的・対象ユーザーの決定（上の方針転換） | 本人 |
+| MVP仕様の文書化 | AIが下書きし、主要な設計判断（工程を正規化テーブルで持つ、総合点の尺度、推薦・外部ベンチマークの廃止、CSVエクスポートを後回し）は本人が確認して採用 |
+| 実装・テスト・README（再設計版） | AI |
+
 ## Core Vertical Slice
 
 ```text
@@ -100,7 +110,7 @@ EYの式は粉に残った液を数えないため、透過式の近似です。
 
 ## API
 
-JSONのAPIです。詳細はアプリ起動後の `/docs`（OpenAPI）にあります。作成は201、削除は204（器具セットは論理削除のため200で更新後の値）を返します。
+JSONのAPIです。リクエスト・応答の全項目はアプリ起動後の `/docs`（OpenAPI）にあります。POSTによる作成は201、PUT（官能評価の作成または置換、計画の置換）とPATCHは200、削除は204（器具セットは論理削除のため200で更新後の値）を返します。
 
 ```text
 GET    POST          /equipment-sets
@@ -118,6 +128,16 @@ POST                 /trials/{id}/tds-readings
 DELETE               /tds-readings/{id}
 PUT           DELETE /trials/{id}/sensory
 ```
+
+### 主な応答の形
+
+- `GET /trials/{id}`：`measured`（`dose_g_actual`・`beverage_mass_g`・`brew_time_s`・`tds_readings`）と `derived`（`tds_mean_pct`・`tds_reading_sd_pct`・`ey_pct`・`days_since_roast`・`planned_total_water_g`）に分けて返す。`tds_readings` の各要素は `id` を持ち、`DELETE /tds-readings/{id}` で1件ずつ消せる
+- `GET /experiments/{id}/comparison`
+  - `conditions[]`：条件ごとの `included_trial_count` と、指標ごとの `n`・`values[{trial_id, trial_no, brewed_at, value}]`・`mean`・`sd`・`median`・`min`・`max`
+  - `tds_variability.{A,B}`：`measurement_sd`（`value`・`groups_used`（2回以上測った試行の数）・`degrees_of_freedom`）と `between_trial_sd`（`value`・`n`）
+  - `differences.{指標}.mean_b_minus_a`：B−Aの平均差。どちらかに値がなければ `null`
+  - `warnings[]`：`{code, count}`（`count` は `DEVIATED_OR_EXCLUDED` だけが持つ）
+- エラー：本文は常に `{"detail": ...}`。422の `detail` は `loc`・`msg`・`type` を持つ要素の配列（入力の検証とPATCHをmergeした後の検証で同じ形）、400・404・409の `detail` は理由の文字列
 
 ### HTTPステータス
 
@@ -167,6 +187,8 @@ tests/e2e/             実サーバー＋ブラウザのE2E
 
 ## ローカル実行
 
+必要なもの：Python 3.12以上（3.12・3.13・3.14で起動とテストを確認）。`python` コマンドがない環境（Ubuntuの標準状態など）では、最初の行だけ `python3` に読み替えてください。仮想環境を有効にした後は `python` で動きます。
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows PowerShell: .\.venv\Scripts\Activate.ps1
@@ -179,6 +201,18 @@ uvicorn app.main:app --reload
 
 起動時にSQLiteのschemaを作成します。DBファイルは既定でリポジトリ直下の `coffee_log_web.db` で、環境変数 `COFFEE_LOG_DB_PATH` で変えられます。移行前のDBファイルを使い続けても動きますが、旧テーブル（`brew_logs` など）は参照しません。
 
+### 動作確認
+
+画面では、ホーム → 器具セットを登録 → 実験を作成（条件Aの工程を入力し「Aの計画をBへ複製」で写してから1か所だけ変える）→ 実験詳細の「試行を記録する」で案内どおりA・Bを交互に記録 → 「条件を比較する」、の順に操作します。
+
+APIでは、別の端末から次のように試せます（`/docs` からも実行できます）。受入シナリオ全体のリクエスト本文は `tests/test_acceptance_scenario.py` にあります。
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/equipment-sets -H 'Content-Type: application/json' \
+  -d '{"name": "Home V60", "filter_label": "Paper", "brewer_label": "V60", "grinder_label": "Grinder", "grind_setting_unit": "click"}'
+curl -s http://127.0.0.1:8000/experiments
+```
+
 ## テスト
 
 ```bash
@@ -190,7 +224,7 @@ python -m pytest -q
 | --- | --- | --- |
 | domain | `tests/test_domain_*.py` | 工程の検証、差分、EY、統計、比較、状態、警告を手計算の値と照合 |
 | DB制約 | `tests/test_db_schema.py` | 生SQLで不正な行を入れると `IntegrityError` になること |
-| API | `tests/test_*_api.py` | 作成・更新・削除、409、PATCHのmerge検証、途中失敗時に何も残らないこと |
+| API | `tests/test_*_api.py` | 作成・更新・削除、400・404・409・422とエラー本文の形、PATCHのmerge検証、拒否や途中失敗の後にDBが元のままであること（計画置換の途中失敗で旧計画に戻る、試行作成の途中失敗で何も残らない） |
 | 受入 | `tests/test_acceptance_scenario.py` | 50℃／93℃の受入シナリオをHTTPだけで実行し、比較の全数値を照合 |
 | 画面 | `tests/test_pages.py` | 各画面が担当する値を含むこと、埋め込みJSが構文として正しいこと（`node` がある場合） |
 | E2E | `tests/e2e/` | 実サーバーとChromiumで、器具登録→実験作成→試行4杯→比較→除外を操作 |
