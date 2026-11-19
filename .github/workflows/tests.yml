@@ -50,3 +50,15 @@ jobs:
             sleep 0.5
           done
           E2E_BASE_URL=http://127.0.0.1:8001 python -m pytest -q tests/e2e
+
+  windows-startup:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip check
+      - name: Check Tokyo timezone and app startup on Windows
+        run: python -m pytest -q tests/test_domain_trial.py tests/test_pages.py::test_home_links_to_the_workflow
